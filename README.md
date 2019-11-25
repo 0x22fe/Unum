@@ -1,4 +1,4 @@
-![Logo](https://github.com/0x22fe/Unum/icon.png "Logo Title Text 1")
+![Logo](https://github.com/0x22fe/Unum/blob/master/icon.png "Unum Language Logo")
 
 # Unum
 A new programming language
