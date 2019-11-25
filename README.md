@@ -1,4 +1,4 @@
-![Logo](https://github.com/0x22fe/Unum/blob/master/icon.png =64x "Unum Language Logo")
+<img src="https://github.com/0x22fe/Unum/blob/master/icon.png" width="64" height="auto" alt="Unum Language Logo"/>
 
 # Unum
 A new programming language
