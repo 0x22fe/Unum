@@ -1,0 +1,4 @@
+build
+assets
+external/plibsys
+CMakeLists.txt.user
