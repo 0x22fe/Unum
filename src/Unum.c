@@ -1,22 +1,22 @@
 #include "Unum.h"
 
 static const str TEST_CODE = " ## A comment ## \
-        @function m -> \
-        @parameters \"wew\", {String}, {int} -> \
-        @result int -> \
+        @function add2 -> \
+        @parameters {yee: i32}, {bee: i32} -> \
+        @result i32 -> \
         @body \
-        { \
-        ioprint \"Hello, World!\"}, \
-        {ioprint sss }, \
-        {return 0 \
-        }; \
+        [   \
+         add yee bee -> @return;   \
+        ]   \
         ";
 
 int main(int argc, char** argv)
 {
+    unum_log("Unum Interpreter (Version Code %u, " __DATE__ ")", UNUM_VERSION);
+
     UnumInstance* ci = Unum_Initialize();
     UnumResult result = Unum_Execute(ci, TEST_CODE);
-    printf("Result (location %u & code %u): \"%s\"\n", result.location, result.result, result.message);
+    unum_log("Result (location %u & code %d): \"%s\"\n", result.location, result.result, result.message);
     Unum_Destroy(ci);
 
     return (int)(result.result);

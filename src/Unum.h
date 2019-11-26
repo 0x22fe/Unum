@@ -60,6 +60,12 @@
 #ifndef UNUM_INCLUDE
 #define UNUM_INCLUDE
 
+// Version macro
+// Refer to https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VK_MAKE_VERSION.html
+#define UNUM_MAKE_VERSION(major, minor, patch) \
+    (((major) << 22) | ((minor) << 12) | (patch))
+#define UNUM_VERSION UNUM_MAKE_VERSION(0, 0, 1)
+
 // Function definition type
 #ifndef UNUM_DEF
 #define UNUM_DEF static
@@ -181,6 +187,7 @@ typedef struct UnumInternalTypePair
 typedef struct UnumInternalType
 {
     str name;
+    size parts_count;
     UnumInternalTypePair* parts;
 } UnumInternalType;
 
@@ -289,21 +296,30 @@ UNUM_DEF const str UNUM_KEYWORDS[] =
 typedef enum UnumInternalPrimitives
 {
     UNUM_PRIMITIVE_NULL = 0,
-    UNUM_PRIMITIVE_U8, UNUM_PRIMITIVE_U16, UNUM_PRIMITIVE_U32, UNUM_PRIMITIVE_U64, UNUM_PRIMITIVE_F32,
-    UNUM_PRIMITIVE_F64, UNUM_PRIMITIVE_BOOL, UNUM_PRIMITIVE_ARRAY
+    UNUM_PRIMITIVE_PARAMETERS,
+    UNUM_PRIMITIVE_ARRAY,
+    UNUM_PRIMITIVE_I8, UNUM_PRIMITIVE_I16, UNUM_PRIMITIVE_I32, UNUM_PRIMITIVE_I64,
+    UNUM_PRIMITIVE_U8, UNUM_PRIMITIVE_U16, UNUM_PRIMITIVE_U32, UNUM_PRIMITIVE_U64,
+    UNUM_PRIMITIVE_F32, UNUM_PRIMITIVE_F64,
+    UNUM_PRIMITIVE_BOOL
 } UnumInternalPrimitives;
 
 UNUM_DEF const UnumInternalType UNUM_TYPE_PRIMITIVES[] =
 {
     [UNUM_PRIMITIVE_NULL] = { .name = "null", .parts = NULL },
+    [UNUM_PRIMITIVE_PARAMETERS] = { .name = "parameters", .parts = NULL },
+    [UNUM_PRIMITIVE_ARRAY] = { .name = "array", .parts = NULL },
+    [UNUM_PRIMITIVE_I8] = { .name = "i8", .parts = NULL },
+    [UNUM_PRIMITIVE_I16] = { .name = "i16", .parts = NULL },
+    [UNUM_PRIMITIVE_I32] = { .name = "i32", .parts = NULL },
+    [UNUM_PRIMITIVE_I64] = { .name = "i64", .parts = NULL },
     [UNUM_PRIMITIVE_U8] = { .name = "u8", .parts = NULL },
     [UNUM_PRIMITIVE_U16] = { .name = "u16", .parts = NULL },
     [UNUM_PRIMITIVE_U32] = { .name = "u32", .parts = NULL },
     [UNUM_PRIMITIVE_U64] = { .name = "u64", .parts = NULL },
     [UNUM_PRIMITIVE_F32] = { .name = "f32", .parts = NULL },
     [UNUM_PRIMITIVE_F64] = { .name = "f64", .parts = NULL },
-    [UNUM_PRIMITIVE_BOOL] = { .name = "bool", .parts = NULL },
-    [UNUM_PRIMITIVE_ARRAY] = { .name = "array", .parts = NULL }
+    [UNUM_PRIMITIVE_BOOL] = { .name = "bool", .parts = NULL }
 };
 
 typedef enum UnumStatus
@@ -378,6 +394,14 @@ UNUM_DEF str Unum_Internal_Utility_Stradd(str a, str b)
     str res = UNUM_MALLOC(sizeof(txt) * (lena + lenb));
     memcpy(res, a, lena);
     memcpy(res + (lena * sizeof(txt)), b, lenb);
+    return res;
+}
+
+UNUM_DEF str Unum_Internal_Utility_Strsub(str s, size a, size b)
+{
+    size len = b - a;
+    str res = UNUM_MALLOC(sizeof(txt) * len);
+    memcpy(res, s + (a * sizeof(txt)), len);
     return res;
 }
 
@@ -486,7 +510,9 @@ UNUM_DEF str Unum_Internal_Parse_Operator(str start)
             Unum_Internal_Utility_Strstart(begin, "[") ||
             Unum_Internal_Utility_Strstart(begin, "]") ||
             Unum_Internal_Utility_Strstart(begin, ",") ||
-            Unum_Internal_Utility_Strstart(begin, ".")) {
+            Unum_Internal_Utility_Strstart(begin, ".") ||
+            Unum_Internal_Utility_Strstart(begin, ":") ||
+            Unum_Internal_Utility_Strstart(begin, ";")) {
         return begin + (1 * sizeof(txt));
     } else if (Unum_Internal_Utility_Strstart(begin, "->")){
         return begin + (2 * sizeof(txt));
@@ -595,7 +621,14 @@ UNUM_DEF UnumInstance* Unum_Initialize(void)
 
     res->stack.type_count = sizeof(UNUM_TYPE_PRIMITIVES) / sizeof(UnumInternalType);
     res->stack.types = UNUM_MALLOC(sizeof(UNUM_TYPE_PRIMITIVES));
+
     memcpy(res->stack.types, UNUM_TYPE_PRIMITIVES, sizeof(UNUM_TYPE_PRIMITIVES));
+
+    res->stack.object_count = 0;
+    res->stack.objects = UNUM_MALLOC(sizeof(UnumInternalObject) * 1);
+
+    res->stack.function_count = 0;
+    res->stack.functions = UNUM_MALLOC(sizeof(UnumInternalFunction) * 1);
 
     return res;
 }
@@ -645,9 +678,53 @@ UNUM_DEF UnumInternalPair* Unum_Internal_Parse_Parameters(UnumInternalTokens t, 
     while(current < t.count)
     {
         UnumInternalToken val = t.tokens[current];
-        if(strcmp(val.value, "{") == 0)
+        if(strcmp(val.value, "(") == 0)
         {
             // Value isn't a literal, but an expression
+            UnumInternalPair res = Unum_Internal_Find_Match(t, current);
+
+            // unum_log("Test: \"%s\" & Results: \"%s\" and \"%s\"", val.value, t.tokens[res.a].value, t.tokens[res.b].value);
+
+            // Syntax (?) error
+            if(res.a == res.b) {
+                UNUM_FREE(params);
+                return NULL;
+            }
+
+            // Allocate more memory
+            params = UNUM_REALLOC(params, sizeof(UnumInternalPair) * (i + 1));
+
+            // Copy value
+            params[i].a = res.a;
+            params[i].b = res.b;
+
+            // Increment current
+            current = res.b + 1;
+        } else if(strcmp(val.value, "[") == 0)
+        {
+            // Value is an array
+            UnumInternalPair res = Unum_Internal_Find_Match(t, current);
+
+            // unum_log("Test: \"%s\" & Results: \"%s\" and \"%s\"", val.value, t.tokens[res.a].value, t.tokens[res.b].value);
+
+            // Syntax (?) error
+            if(res.a == res.b) {
+                UNUM_FREE(params);
+                return NULL;
+            }
+
+            // Allocate more memory
+            params = UNUM_REALLOC(params, sizeof(UnumInternalPair) * (i + 1));
+
+            // Copy value
+            params[i].a = res.a;
+            params[i].b = res.b;
+
+            // Increment current
+            current = res.b + 1;
+        } else if(strcmp(val.value, "{") == 0)
+        {
+            // Value is a set
             UnumInternalPair res = Unum_Internal_Find_Match(t, current);
 
             // unum_log("Test: \"%s\" & Results: \"%s\" and \"%s\"", val.value, t.tokens[res.a].value, t.tokens[res.b].value);
@@ -710,22 +787,34 @@ UNUM_DEF UnumInternalPair* Unum_Internal_Parse_Parameters(UnumInternalTokens t, 
     return NULL;
 }
 
-#define UNUM_INTERNAL_RESULT(msg, loc, c) (UnumResult){.location = (loc), .code = (c), .message = Unum_Internal_Utility_Stradd(UNUM_CODES[(c)].message, ": " msg), .result = -((i32)(UNUM_CODES[(c)].level)) }
+#define QUOTE(str) #str
+#define EXPAND_AND_QUOTE(str) QUOTE(str)
+#define UNUM_INTERNAL_RESULT(msg, loc, c) (UnumResult){.location = (loc), .code = (c), .message = Unum_Internal_Utility_Stradd(UNUM_CODES[(c)].message, " (Interpreter line " EXPAND_AND_QUOTE(__LINE__) "): " msg), .result = -((i32)(UNUM_CODES[(c)].level)) }
+
+// Resolves type name to ID
+UNUM_DEF size Unum_Internal_Execute_Typeid(UnumInstance* c, str typename)
+{
+    // Lookup type name
+    // Todo - Optimize by using a hash table
+    size res = UNUM_PRIMITIVE_NULL;
+    for(size u = 0; u < c->stack.type_count; u++)
+    {
+        if(strcmp(typename, c->stack.types[u].name) == 0)
+        {
+            res = u;
+            break;
+        }
+    }
+
+    return res;
+}
 
 // Todo - Finish
+// Todo - Break up into sub-functions by keyword
 // Return location of error on problem, otherwise return 0
 UNUM_DEF UnumResult Unum_Execute(UnumInstance* c, str code)
 {
     c->program = Unum_Internal_Tokenize(code);
-
-    c->stack.object_count = 0;
-    c->stack.objects = UNUM_MALLOC(sizeof(UnumInternalObject) * 1);
-
-    c->stack.type_count = 0;
-    c->stack.types = UNUM_MALLOC(sizeof(UnumInternalType) * 1);
-
-    c->stack.function_count = 0;
-    c->stack.functions = UNUM_MALLOC(sizeof(UnumInternalFunction) * 1);
 
     unum_log("Code:");
     unum_log("\"%s\"", code);
@@ -734,6 +823,8 @@ UNUM_DEF UnumResult Unum_Execute(UnumInstance* c, str code)
     {
         unum_log("\t%s", c->program.tokens[tmp].value);
     }
+
+    bool pipe = UNUM_FALSE;
 
     for(size i = 0; i < c->program.count; i++)
     {
@@ -752,10 +843,10 @@ UNUM_DEF UnumResult Unum_Execute(UnumInstance* c, str code)
                     return UNUM_INTERNAL_RESULT("Invalid syntax", i, UNUM_CODE_SYNTAX_ERROR);
                 if(num == 0)
                     // Error - Not enough arguments (need function name)
-                    return UNUM_INTERNAL_RESULT("Not enough arguments (need function name)", i, UNUM_CODE_RUNTIME_ERROR);
+                    return UNUM_INTERNAL_RESULT("Not enough arguments (need function name)", i, UNUM_CODE_SYNTAX_ERROR);
                 if(num > 1)
                     // Error - Too many arguments (only need function name)
-                    return UNUM_INTERNAL_RESULT("Too many arguments (only need function name)", i, UNUM_CODE_RUNTIME_ERROR);
+                    return UNUM_INTERNAL_RESULT("Too many arguments (only need function name)", i, UNUM_CODE_SYNTAX_ERROR);
                 if(params[0].a != params[0].b)
                     // Error - Argument is not a valid symbol
                     return UNUM_INTERNAL_RESULT("Argument is not a valid symbol", i, UNUM_CODE_SYNTAX_ERROR);
@@ -783,9 +874,9 @@ UNUM_DEF UnumResult Unum_Execute(UnumInstance* c, str code)
                 f.parameters = (UnumInternalType) {.name = NULL, .parts = NULL};
 
                 // Resize array and add function
+                c->stack.functions[c->stack.function_count] = f;
                 c->stack.function_count++;
                 c->stack.functions = UNUM_REALLOC(c->stack.functions, sizeof(UnumInternalFunction) * c->stack.function_count);
-                c->stack.functions[c->stack.function_count - 1] = f;
 
                 unum_log("New Function \"%s\"", f.name);
 
@@ -793,10 +884,126 @@ UNUM_DEF UnumResult Unum_Execute(UnumInstance* c, str code)
 
             } else if(strstr(current.value, UNUM_KEYWORDS[UNUM_KEYWORD_PARAMETERS]) != NULL)
             {
-                // Todo - Complete
+                // Parameter call always has to follow a function and pipe call
+                // This may be changed in a future version
+                // Todo - Verify piped object is a function
+                if(!pipe)
+                    return UNUM_INTERNAL_RESULT("@parameters must always follow a call to @function", i, UNUM_CODE_SYNTAX_ERROR);
+
+                UnumInternalType p;
+                p.name = NULL;
+                p.parts_count = 0;
+                p.parts = NULL;
+
+                size num = 0;
+                UnumInternalPair* params = Unum_Internal_Parse_Parameters(c->program, i + 1, &num);
+
+                if(params == NULL)
+                    return UNUM_INTERNAL_RESULT("Invalid syntax", i, UNUM_CODE_SYNTAX_ERROR);
+
+                if(num > 0)
+                {
+                    p.parts_count = num;
+                    p.parts = UNUM_MALLOC(sizeof(UnumInternalTypePair) * num);
+
+                    for(size u = 0; u < num; u++)
+                    {
+                        // unum_log("%d, %d", params[u].b, params[u].a);
+                        if(strcmp(c->program.tokens[params[u].a].value, "{") == 0
+                                && params[u].b - params[u].a == 4) // Must include 5 tokens
+                        {
+                            size tok_symbol = params[u].a + 1;
+                            size tok_itemset = params[u].a + 2;
+                            size tok_typename = params[u].a + 3; // Require one-symbol typename, possible allow for expressions in the future
+
+                            // Validate input
+                            if(c->program.tokens[tok_symbol].type != UNUM_LANG_SYMBOL)
+                                return UNUM_INTERNAL_RESULT("@parameters argument set expected symbol, received other type", i, UNUM_CODE_SYNTAX_ERROR);
+                            if(c->program.tokens[tok_itemset].type != UNUM_LANG_OPERATOR)
+                                return UNUM_INTERNAL_RESULT("@parameters argument set expected operator, received other type", i, UNUM_CODE_SYNTAX_ERROR);
+                            if(strcmp(c->program.tokens[tok_itemset].value, ":") != 0)
+                                return UNUM_INTERNAL_RESULT("@parameters argument set expected set equals operator (\":\"), received other operator", i, UNUM_CODE_SYNTAX_ERROR);
+                            if(c->program.tokens[tok_typename].type != UNUM_LANG_SYMBOL)
+                                return UNUM_INTERNAL_RESULT("@parameters argument set expected symbol, received other type", i, UNUM_CODE_SYNTAX_ERROR);
+
+                            // Lookup typename
+                            size param_type_id = Unum_Internal_Execute_Typeid(c, c->program.tokens[tok_typename].value);
+
+                            // Todo - Compare with other parameter symbol names to ensure there are no duplicates
+
+                            // Add to hidden type
+                            p.parts[u] = (UnumInternalTypePair) {.name = Unum_Internal_Utility_Strdup(c->program.tokens[tok_symbol].value), .type_id = param_type_id};
+
+                        } else {
+                            // Error - Bad syntax
+                            return UNUM_INTERNAL_RESULT("@parameters expects arguments of the format { symbol: typename }", i, UNUM_CODE_SYNTAX_ERROR);
+                        }
+                    }
+
+                    // Type is function-specific, so don't add to global table
+                    /*
+                    // Add type to type table
+                    c->stack.types[c->stack.type_count] = p;
+                    c->stack.type_count++;
+                    */
+
+                    // Set properties of incoming function
+                    c->stack.functions[c->stack.function_count - 1].parameters = p;
+
+                    unum_log("New Parameters (%u)", p.parts_count);
+                    for(size v = 0; v < p.parts_count; v++)
+                    {
+                        unum_log("\"%s\" of type ID #%u (\"%s\")", p.parts[v].name, p.parts[v].type_id, c->stack.types[p.parts[v].type_id].name);
+                    }
+                } else {
+                    unum_log("No Parameters");
+                }
+
+                UNUM_FREE(params);
             } else if(strstr(current.value, UNUM_KEYWORDS[UNUM_KEYWORD_RESULT]) != NULL)
             {
-                // Todo - Complete
+                // Rsult call always has to follow a parameter and pipe call
+                // This may be changed in a future version
+                // Todo - Verify piped object is a function
+                if(!pipe)
+                    return UNUM_INTERNAL_RESULT("@result must always follow a call to @parameter", i, UNUM_CODE_SYNTAX_ERROR);
+
+                // Possibly add support for multiple return values in the future
+                size num = 0;
+                UnumInternalPair* params = Unum_Internal_Parse_Parameters(c->program, i + 1, &num);
+
+                if(params == NULL)
+                    return UNUM_INTERNAL_RESULT("Invalid syntax", i, UNUM_CODE_SYNTAX_ERROR);
+
+                if(num == 0)
+                {
+                    unum_log("No result");
+                } else if (num == 1) {
+                    if(params[0].a != params[0].b)
+                        return UNUM_INTERNAL_RESULT("@return has invalid arguments", i, UNUM_CODE_SYNTAX_ERROR);
+                    if(c->program.tokens[params[0].a].type != UNUM_LANG_SYMBOL)
+                        return UNUM_INTERNAL_RESULT("@return expected a symbol, got an other type", i, UNUM_CODE_SYNTAX_ERROR);
+
+                    UnumInternalType val;
+                    val.name = NULL;
+                    val.parts_count = 1;
+                    val.parts = UNUM_MALLOC(sizeof(UnumInternalTypePair) * 1);
+
+                    // Lookup typename
+                    size param_type_id = Unum_Internal_Execute_Typeid(c, c->program.tokens[params[0].a].value);
+
+                    val.parts[0].name = NULL;
+                    val.parts[0].type_id = param_type_id;
+
+                    // Set properties of incoming function
+                    c->stack.functions[c->stack.function_count - 1].result = val;
+
+                    unum_log("New result with type ID: %u (\"%s\")", param_type_id, c->stack.types[param_type_id].name);
+                } else {
+                    return UNUM_INTERNAL_RESULT("Too many return values (only 1 is allowed)", i, UNUM_CODE_SYNTAX_ERROR);
+                }
+
+                UNUM_FREE(params);
             } else {
                 // Error - Invalid keyword
                 // return UNUM_INTERNAL_RESULT("Invalid keyword", i, UNUM_CODE_SYNTAX_ERROR);
@@ -821,7 +1028,7 @@ UNUM_DEF UnumResult Unum_Execute(UnumInstance* c, str code)
         } else if (current.type == UNUM_LANG_OPERATOR) {
             if(strcmp(current.value, UNUM_OPERATORS[UNUM_OPERATOR_PASS]) == 0)
             {
-
+                pipe = UNUM_TRUE;
             }
         } else {
 

@@ -3,6 +3,16 @@
 # Unum
 A new programming language
 
+# Examples
+
+** The usual "Hello World" example **
+```
+# A comment
+
+io.print "Hello, World!";
+
+```
+
 # Dependencies
 The only dependency of the project is [plibsys](https://github.com/saprykin/plibsys), which will be automatically downloaded by CMake on build.
 

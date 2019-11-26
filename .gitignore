@@ -1,4 +1,4 @@
 build
 assets
-external/plibsys
+external/plibsys/
 CMakeLists.txt.user
