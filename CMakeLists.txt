@@ -4,6 +4,16 @@ include(ExternalProject)
 
 project(Unum C)
 
+# Refer to https://stackoverflow.com/a/47801116/4909645
+function(make_includable input_file output_file)
+    file(READ ${input_file} content)
+    # set(delim "for_c++_include")
+    string(REPLACE "\"" "\\\"" content ${content})
+    string(REPLACE "\n" "\" \"" new_data ${content})
+    set(new_data "\"${new_data}\"")
+    file(WRITE ${output_file} "${new_data}")
+endfunction(make_includable)
+
 ExternalProject_Add(plibsys
   GIT_REPOSITORY https://github.com/saprykin/plibsys
   PREFIX ${CMAKE_SOURCE_DIR}/external/plibsys
@@ -20,6 +30,9 @@ add_executable(${PROJECT_NAME} src/Unum.c)
 
 set(${PROJECT_NAME}_VERSION 1 0 0)
 set_property(TARGET ${PROJECT_NAME} PROPERTY C_STANDARD 99)
+
+# Generate Unum libraries
+make_includable(src/libraries/Math.u src/libraries/generated/Math.h)
 
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR}/plibsys/include/plibsys)
 
