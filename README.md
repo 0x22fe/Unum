@@ -30,6 +30,8 @@ More examples coming soon!
 
 Features that are planned or already in development include:
 
+* Internal memory pool
+* Unified error reporting and handling
 * Full unicode character support
 * Sockets and threads support
 * File handling support

@@ -7,10 +7,10 @@ project(Unum C)
 # Refer to https://stackoverflow.com/a/47801116/4909645
 function(make_includable input_file output_file)
     file(READ ${input_file} content)
-    # set(delim "for_c++_include")
+    string(REPLACE "\n" "\\n" content ${content})
+    string(REPLACE "\\\"" "\\\\\"" content ${content})
     string(REPLACE "\"" "\\\"" content ${content})
-    string(REPLACE "\n" "\" \"" new_data ${content})
-    set(new_data "\"${new_data}\"")
+    set(new_data "\"${content}\"")
     file(WRITE ${output_file} "${new_data}")
 endfunction(make_includable)
 
@@ -32,7 +32,7 @@ set(${PROJECT_NAME}_VERSION 1 0 0)
 set_property(TARGET ${PROJECT_NAME} PROPERTY C_STANDARD 99)
 
 # Generate Unum libraries
-make_includable(src/libraries/Math.u src/libraries/generated/Math.h)
+make_includable(src/libraries/bindings/Math.u src/libraries/generated/Math.h)
 
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR}/plibsys/include/plibsys)
 
@@ -42,7 +42,7 @@ if(WIN32)
 endif()
 
 if(APPLE)
-    target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -pedantic) #-Werror)
+    target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -pedantic -std=c99) #-Werror)
     target_link_libraries(${PROJECT_NAME} ${CMAKE_BINARY_DIR}/plibsys/lib/libplibsys.dylib)
 endif()
 

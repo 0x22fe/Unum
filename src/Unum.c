@@ -22,36 +22,14 @@ int main(int argc, char** argv)
     unum_log("Unum Interpreter (Version Code %u, Built on " __DATE__ ")", UNUM_VERSION);
 
     UnumInstance* ci = Unum_Initialize();
-    // UnumResult result = Unum_Execute(ci, TEST_CODE);
-    // unum_log("Result (location %u & code %d): \"%s\"\n", result.location, result.result, result.message);
 
-        /*
-    size t = 0;
-    UnumInternalPairList pp = Unum_Internal_Parse_Separate(ci->program, ";", 0);
-    UnumInternalTokens n = Unum_Internal_Tokens_Sub(ci->program, pp.pairs[0]);
-    for(size i = 0; i < n.count; i++)
-    {
-        unum_log("%s", n.tokens[i].value);
-    }
-    UnumInternalPairList nn = Unum_Internal_Parse_Separate(n, "->", 0);
+    if(ci == NULL)
+        return -1;
 
-            Unum_Debug_Print_Pair_New(ci->program, pp);
-            Unum_Debug_Print_Pair_New(n, nn);
-
-            unum_log("Done printing new pair");
-
-    */
+    UnumResult result = Unum_Execute(ci, TEST_CODE);
+    unum_log("Result (location %u & code %d): \"%s\"\n", result.location, result.result, result.message);
 
     Unum_Destroy(ci);
 
-/*
-                str beep = "kachow";
-                str res = Unum_Internal_Utility_Strins(beep, beep, "( ");
-                str res2 = Unum_Internal_Utility_Strins(res, res + strlen(res), " )");
-                printf("Original: \"%s\", After: \"%s\"\n", beep, res2);
-                //return 0;
- */
-
-        return 0;
-    //return (int)(result.result);
+    return (int)(result.result);
 }
