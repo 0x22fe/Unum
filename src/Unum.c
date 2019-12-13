@@ -5,7 +5,7 @@
 static const str TEST_CODE = " ## A comment ## \
         ##@test { a: \"val\", b: \"wew\", c: 3.14 } -> #(func 10 -> @return) -> #[ 232, 44, 55, 62, 77 ] -> ## \
         @function add2 -> \
-        @parameters {yee: i32}, {bee: i32} -> \
+        @parameters {yee: i32, bee: i32} -> \
         @result i32 -> \
         @body \
            \
@@ -15,7 +15,8 @@ static const str TEST_CODE = " ## A comment ## \
         @parameters {idk: i32} -> \
         @result i32 -> \
         @body (@return idk); \
-        ";
+        \
+        add2 128, 23 -> io.print;";
 
 int main(int argc, char** argv)
 {

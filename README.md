@@ -30,6 +30,7 @@ More examples coming soon!
 
 Features that are planned or already in development include:
 
+* More efficient and cleaner codebase
 * Internal memory pool
 * Unified error reporting and handling
 * Full unicode character support

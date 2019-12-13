@@ -43,10 +43,10 @@ endif()
 
 if(APPLE)
     target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -pedantic -std=c99) #-Werror)
-    target_link_libraries(${PROJECT_NAME} ${CMAKE_BINARY_DIR}/plibsys/lib/libplibsys.dylib)
+    target_link_libraries(${PROJECT_NAME} m ${CMAKE_BINARY_DIR}/plibsys/lib/libplibsys.dylib)
 endif()
 
 if(UNIX AND NOT APPLE)
     target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -pedantic -std=c99) #-Werror)
-    target_link_libraries(${PROJECT_NAME} ${CMAKE_BINARY_DIR}/plibsys/lib/libplibsys.so)
+    target_link_libraries(${PROJECT_NAME} m ${CMAKE_BINARY_DIR}/plibsys/lib/libplibsys.so)
 endif()

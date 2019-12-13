@@ -27,7 +27,10 @@
  *
  */
 
-// Include this file in Unum.h (in library registering section)
+// Include this file in Unum.h (in library loading section)
+
+// Include here, although this is technically unnecessary
+#include "../Unum.h"
 
 #ifndef UMATH_HPP
 #define UMATH_HPP
@@ -36,17 +39,30 @@
  * Constants
  ****************************************************************/
 
-#define UNUM_MATH_ERROR (1e-4F)
-#define UNUM_MATH_EPSILON (1e-8F)
-#define UNUM_MATH_INFINITY (1e+10F)
-#define UNUM_MATH_PI (3.14159265358979323846F)
-#define UNUM_MATH_2_PI (UNUM_MATH_PI * 2.0F)
-#define UNUM_MATH_PI_2 (UNUM_MATH_PI / 2.0F)
-#define UNUM_MATH_DEG (UNUM_MATH_PI / 180.0F)
-#define UNUM_MATH_RAD (180.0F / UNUM_MATH_PI)
+#define UNUM_LIBRARY_MATH_ERROR (1e-4F)
+#define UNUM_LIBRARY_MATH_EPSILON (1e-8F)
+#define UNUM_LIBRARY_MATH_INFINITY (1e+10F)
+#define UNUM_LIBRARY_MATH_PI (3.14159265358979323846F)
+#define UNUM_LIBRARY_MATH_2_PI (UNUM_MATH_PI * 2.0F)
+#define UNUM_LIBRARY_MATH_PI_2 (UNUM_MATH_PI / 2.0F)
+#define UNUM_LIBRARY_MATH_DEG (UNUM_MATH_PI / 180.0F)
+#define UNUM_LIBRARY_MATH_RAD (180.0F / UNUM_MATH_PI)
+
+UNUM_DEF f64 unum_math_sin(f64 f)
+{
+    return (f64)sin((f64)f);
+}
+
+UNUM_DEF const UnumInternalNative UNUM_NATIVE_MATH[] =
+{
+    [0] = { .name = "unum_math_sin", .function = (any) unum_math_sin,
+            .params = (UnumInternalObject**){&UNUM_OBJECT_PRIMITIVES[UNUM_PRIMITIVE_F64],},
+            .result = (UnumInternalObject**){&UNUM_OBJECT_PRIMITIVES[UNUM_PRIMITIVE_F64],} }
+};
 
 UNUM_DEF const str UNUM_LIBRARY_MATH =
         #include "generated/Math.h"
         ;
+
 
 #endif // UMATH_HPP
