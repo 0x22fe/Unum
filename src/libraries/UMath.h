@@ -43,24 +43,29 @@
 #define UNUM_LIBRARY_MATH_EPSILON (1e-8F)
 #define UNUM_LIBRARY_MATH_INFINITY (1e+10F)
 #define UNUM_LIBRARY_MATH_PI (3.14159265358979323846F)
-#define UNUM_LIBRARY_MATH_2_PI (UNUM_MATH_PI * 2.0F)
-#define UNUM_LIBRARY_MATH_PI_2 (UNUM_MATH_PI / 2.0F)
-#define UNUM_LIBRARY_MATH_DEG (UNUM_MATH_PI / 180.0F)
-#define UNUM_LIBRARY_MATH_RAD (180.0F / UNUM_MATH_PI)
+#define UNUM_LIBRARY_MATH_2_PI (UNUM_LIBRARY_MATH_PI * 2.0F)
+#define UNUM_LIBRARY_MATH_PI_2 (UNUM_LIBRARY_MATH_PI / 2.0F)
+#define UNUM_LIBRARY_MATH_DEG (UNUM_LIBRARY_MATH_PI / 180.0F)
+#define UNUM_LIBRARY_MATH_RAD (180.0F / UNUM_LIBRARY_MATH_PI)
 
-UNUM_DEF f64 unum_math_sin(f64 f)
+// static const UnumInternalObject unum_lib_math_sin_params[] = { UNUM_OBJECT_PRIMITIVES[UNUM_PRIMITIVE_F64] };
+// static const UnumInternalObject unum_lib_math_sin_result = UNUM_OBJECT_PRIMITIVES[UNUM_PRIMITIVE_F64];
+static f64 unum_lib_math_sin(f64 f)
 {
-    return (f64)sin((f64)f);
+    return (f64) sin(f);
 }
 
-UNUM_DEF const UnumInternalNative UNUM_NATIVE_MATH[] =
+static const UnumInternalNative UNUM_NATIVE_MATH[] = {0};
+/*
 {
-    [0] = { .name = "unum_math_sin", .function = (any) unum_math_sin,
-            .params = (UnumInternalObject**){&UNUM_OBJECT_PRIMITIVES[UNUM_PRIMITIVE_F64],},
-            .result = (UnumInternalObject**){&UNUM_OBJECT_PRIMITIVES[UNUM_PRIMITIVE_F64],} }
+    [0] = { .name = "unum_math_sin",
+            .function = unum_lib_math_sin,
+            .params = unum_math_sin_params,
+            .result = unum_math_sin_result }
 };
+                */
 
-UNUM_DEF const str UNUM_LIBRARY_MATH =
+static const str UNUM_LIBRARY_MATH =
         #include "generated/Math.h"
         ;
 

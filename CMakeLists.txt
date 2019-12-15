@@ -26,7 +26,7 @@ ExternalProject_Get_Property(plibsys SOURCE_DIR)
 
 # message(FATAL_ERROR "Src: ${SOURCE_DIR} and Install: ${INSTALL_DIR}")
 
-add_executable(${PROJECT_NAME} src/Unum.c)
+add_executable(${PROJECT_NAME} src/Unum.c src/Main.c)
 
 set(${PROJECT_NAME}_VERSION 1 0 0)
 set_property(TARGET ${PROJECT_NAME} PROPERTY C_STANDARD 99)
