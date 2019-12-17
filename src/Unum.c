@@ -6,15 +6,32 @@ extern "C" {
 #endif
 
 /****************************************************************
- * Utility and Parsing
+ * Reporting functions
  ****************************************************************/
 
 // Returns time in microseconds
 // https://www.geeksforgeeks.org/measure-execution-time-with-high-precision-in-c-c/
-UNUM_DEF size Unum_Time(void)
+UNUM_DEF size Unum_Internal_Time(void)
 {
     return (size)(((f64)(clock()) / (f64)(CLOCKS_PER_SEC)) * 1e6);
 }
+
+UNUM_DEF void Unum_Internal_Exception(UnumInstance* c, str msg, UnumCode code, size tok)
+{
+    c->result.code = code;
+    c->result.status = UNUM_CODES[code].level;
+    c->result.message = msg;
+    c->result.location = tok;
+    c->result.result = UNUM_CODES[code].result;
+
+    unum_log("Result: %s (%s), token %u - \"%s\"",
+             UNUM_STATUSES[c->result.status], UNUM_CODES[c->result.code].message,
+            c->result.location, c->result.message);
+}
+
+/****************************************************************
+ * Utility and Parsing
+ ****************************************************************/
 
 UNUM_DEF bool Unum_Internal_Utility_Txtvalid(txt s)
 {
@@ -158,6 +175,19 @@ UNUM_DEF str Unum_Internal_Parse_Symbol(str start)
     return start + (i * sizeof(char));
 }
 
+UNUM_DEF str Unum_Internal_Parse_Word(str start)
+{
+    size i = 1;
+
+    while(Unum_Internal_Utility_Txtvalid(start[i]))
+    {
+        if(!isalnum(start[i]) && start[i] != '_') break;
+        i++;
+    }
+
+    return start + (i * sizeof(char));
+}
+
 UNUM_DEF str Unum_Internal_Parse_Number(str start)
 {
     size i = 1;
@@ -272,6 +302,11 @@ UNUM_DEF UnumInternalTokens Unum_Internal_Tokenize(str code)
             start = result.code + (i * sizeof(txt));
             end = Unum_Internal_Parse_Symbol(start);
             val = UNUM_LANG_KEYWORD;
+        } else if(result.code[i] == '$') {
+            // Word (symbol value)
+            start = result.code + (i * sizeof(txt));
+            end = Unum_Internal_Parse_Word(start);
+            val = UNUM_LANG_WORD;
         } else if(isalpha(result.code[i]) || result.code[i] == '_') {
             // Symbol
             start = result.code + (i * sizeof(txt));
@@ -696,10 +731,9 @@ UNUM_DEF bool Unum_Internal_Execute_Same_Type(UnumInternalObject a, UnumInternal
             UnumInternalObjSymbol* at = (UnumInternalObjSymbol*)a.data;
             UnumInternalObjSymbol* bt = (UnumInternalObjSymbol*)b.data;
 
-            if(strcmp(at->name, bt->name) == 0)
-                return UNUM_TRUE;
-            else
-                return UNUM_FALSE;
+            // ...
+
+            return UNUM_FALSE;
         }
         case UNUM_OBJ_SINGLE: {
             return UNUM_FALSE;
@@ -768,7 +802,7 @@ UNUM_DEF UnumInternalPair Unum_Internal_Execute_Id(UnumInstance* c, str name)
 }
 
 // Returns highest stack level
-UNUM_DEF size Unum_Internal_Execute_Stacklevel(UnumInstance* c)
+UNUM_DEF size Unum_Internal_Execute_Stack_Level(UnumInstance* c)
 {
     size level = 0;
     UnumInternalStack* last = &c->stack;
@@ -812,7 +846,8 @@ UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Function(UnumInstance* c, Unum
         return UNUM_OBJ_DEF; // UNUM_INTERNAL_RESULT("Argument is not a symbol", 0, UNUM_CODE_SYNTAX_ERROR);
 
     // Verify symbol name doesn't already exist
-    str name = ((UnumInternalObjSymbol*)params->objects[0].data)->name;
+    // Idea - Allow for inline namespaces here, for now just use the first name
+    str name = ((UnumInternalObjSymbol*)params->objects[0].data)->names[0];
     UnumInternalPair id_res = Unum_Internal_Execute_Id(c, name);
 
     if(id_res.b != 0)
@@ -903,8 +938,6 @@ UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Parameters(UnumInstance* c, Un
 UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Result(UnumInstance* c, UnumInternalStack* params)
 {
     // Remember, 0 is reserved in the stack
-    if(params->count < 2)
-        return UNUM_OBJ_DEF; // UNUM_INTERNAL_RESULT("@result needs to be called after a @function pass", 0, UNUM_CODE_RUNTIME_ERROR);
     if(params->objects[1].type != UNUM_OBJ_FUNCTION)
         return UNUM_OBJ_DEF; // UNUM_INTERNAL_RESULT("@result called with pass not from @function", 0, UNUM_CODE_RUNTIME_ERROR);
 
@@ -917,30 +950,13 @@ UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Result(UnumInstance* c, UnumIn
         // Has a return value
     } else if (params->count == 3) {
         // Todo - Allow returning custom set instead of a single type
-        if(params->objects[2].type != UNUM_OBJ_SYMBOL)
+        if(params->objects[2].type != UNUM_OBJ_TYPE)
             return UNUM_OBJ_DEF; // UNUM_INTERNAL_RESULT("@result expected a symbol, got an other type", 0, UNUM_CODE_SYNTAX_ERROR);
 
-        // Lookup typename
-        UnumInternalPair param_type_id = Unum_Internal_Execute_Id(c, ((UnumInternalObjSymbol*)params->objects[2].data)->name);
-
-        // Verify type exists
-        if(param_type_id.b == 0)
-            return UNUM_OBJ_DEF; // UNUM_INTERNAL_RESULT("@result argument has unknown type", 0, UNUM_CODE_RUNTIME_ERROR);
-
-        // Lookup symbol name in global stack
-        UnumInternalObject* ob = &Unum_Internal_Execute_Level(c, param_type_id.a)->objects[param_type_id.b];
-
-        // Verify symbol name is a type
-        if(ob->type != UNUM_OBJ_TYPE)
-            return UNUM_OBJ_DEF; // UNUM_INTERNAL_RESULT("@result argument expected a type name", 0, UNUM_CODE_RUNTIME_ERROR);
-
-        // Create type (one value for now, possibly multiple in the future via a set)
-        UnumInternalObjType s = *((UnumInternalObjType*)(ob->data));
-
         // Add result type to function object
-        ((UnumInternalObjFunction*)params->objects[1].data)->result = s;
+        ((UnumInternalObjFunction*)params->objects[1].data)->result = *((UnumInternalObjType*)params->objects[2].data);
 
-        unum_log("New result with stack level #%u, type ID #%u (\"%s\")", param_type_id.a, param_type_id.b, ((UnumInternalObjSymbol*)params->objects[2].data)->name);
+        unum_log("New result with type \"%s\"", ((UnumInternalObjType*)params->objects[2].data)->type);
 
         // Return function object
         return params->objects[1];
@@ -952,7 +968,56 @@ UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Result(UnumInstance* c, UnumIn
 
 UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Namespace(UnumInstance* c, UnumInternalStack* params)
 {
-    return UNUM_OBJ_DEF;
+    // Namespace is a different keyword as it expects raw expressions and not objects
+
+    // Remember, 0 is reserved in the stack
+    if(params->count != 3)
+        return UNUM_OBJ_DEF; // UNUM_INTERNAL_RESULT("@namespace needs to be called with a name and expression", 0, UNUM_CODE_RUNTIME_ERROR);
+    if(params->objects[1].type != UNUM_OBJ_SYMBOL)
+        return UNUM_OBJ_DEF; // UNUM_INTERNAL_RESULT("@namespace expected symbol", 0, UNUM_CODE_RUNTIME_ERROR);
+    if(params->objects[2].type != UNUM_OBJ_EXPRESSION)
+        return UNUM_OBJ_DEF; // UNUM_INTERNAL_RESULT("@namespace expected expression", 0, UNUM_CODE_RUNTIME_ERROR);
+
+    // Execute expression and get object
+    UnumInternalObject o = Unum_Internal_Execute_Expressions(c, (UnumInternalPair){.a = 0, .b = 0});
+
+    // Verify object
+    if(Unum_Internal_Execute_Obj_Null(o))
+    {
+        return UNUM_OBJ_DEF;
+    }
+
+    // Create namespace
+    // Idea - Allow for inline namespaces, for now just use first symbol
+    UnumInternalObjNamespace* ns = UNUM_MALLOC(sizeof(UnumInternalObjNamespace) * 1);
+    ns->name = Unum_Internal_Utility_Strdup(((UnumInternalObjSymbol*)params->objects[1].data)->names[0]);
+    ns->count = 1;
+    ns->objects = UNUM_MALLOC(sizeof(UnumInternalObject) * ns->count);
+
+    // Get sub-stack (newly formed after executing expressions)
+    UnumInternalStack* s = ((UnumInternalStack*)params->objects[0].data);
+
+    // Iterate over sub-stack
+    // Remember, 0 is reserved in the stack
+    for(size i = 1; i < s->count; i++)
+    {
+        // Copy object to namespace
+        ns->objects = UNUM_REALLOC(ns->objects, sizeof(UnumInternalObject) * ns->count);
+        ns->objects[ns->count - 1] = s->objects[i];
+        ns->count++;
+
+        // Remove original object
+        s->objects[i] = UNUM_OBJ_DEF;
+    }
+
+    // Create object
+    UnumInternalObject obj;
+    ns->name = Unum_Internal_Utility_Strdup(((UnumInternalObjSymbol*)params->objects[1].data)->names[0]);
+    obj.type = UNUM_OBJ_NAMESPACE;
+    obj.data = ns;
+
+    // Return object
+    return obj;
 }
 
 UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Alias(UnumInstance* c, UnumInternalStack* params)
@@ -1048,7 +1113,8 @@ UNUM_DEF UnumInternalObject Unum_Internal_Execute_Data(UnumInstance* c, UnumInte
             }
 
             // Get first element
-            // Should be a key and therefore a single symbol value (possibly allow for strings in the future)
+            // Should be a key and therefore a single symbol value
+            // Idea - Allow for strings in the future
             set->keys[sc] = Unum_Internal_Utility_Strdup(c->program.tokens[tmp_args.pairs[0].a].value);
 
             // Get second element
@@ -1165,20 +1231,277 @@ UNUM_DEF UnumInternalObject Unum_Internal_Execute_Data(UnumInstance* c, UnumInte
         // Return object
         return obj;
 
-        // Handle objects
+        // Handle objects/symbols
+        // This section covers both symbols as a link to an object and as a literal value
+        // Remember, function calls are handled by the Execute_Expressions function
     } else if(active.type == UNUM_LANG_SYMBOL)
     {
         // Lookup object
+        UnumInternalObject obj;
         UnumInternalPair idx = Unum_Internal_Execute_Id(c, active.value);
 
-        // Verify object exists
+        // Check if object doesn't exist
         if(idx.b == 0)
         {
-            return UNUM_OBJ_DEF;
+            // Todo - Use common code for this and the UNUM_LANG_WORD section
+
+            // As the object doesn't exist, assume this is meant to be a symbol literal (a "word")
+
+            // Create symbol object
+            UnumInternalObjSymbol* val = UNUM_MALLOC(sizeof(UnumInternalObjSymbol) * 1);
+            val->count = 1;
+            val->names = UNUM_MALLOC(sizeof(str*) * val->count);
+
+            // Check for member access
+            if(range.b < c->program.count && strcmp(c->program.tokens[range.a + 1].value, ".") == 0)
+            {
+                bool expect_symbol = UNUM_FALSE;
+                size last = range.a + 1;
+
+                // Seek to end of member access chain
+                while(last < range.b)
+                {
+                    // Check for operator/symbol
+                    if(expect_symbol)
+                    {
+                        if(c->program.tokens[last].type != UNUM_LANG_SYMBOL ||
+                                c->program.tokens[last].type != UNUM_LANG_WORD)
+                        {
+                            last = range.a;
+                            break;
+                        }
+
+                        // Add next symbol
+                        val->count++;
+                        val->names = UNUM_REALLOC(val->names, sizeof(str*) * val->count);
+
+                        // Check if symbol
+                        if(c->program.tokens[last].type == UNUM_LANG_SYMBOL)
+                            // Copy full string
+                            val->names[val->count - 1] = Unum_Internal_Utility_Strdup(c->program.tokens[last].value);
+                        else
+                            // Skip first character (symbolize operator)
+                            val->names[val->count - 1] = Unum_Internal_Utility_Strdup(c->program.tokens[last].value + (sizeof(txt) + 1));
+                    } else {
+                        if(strcmp(c->program.tokens[last].value, ".") != 0)
+                        {
+                            last = range.a;
+                            break;
+                        }
+                    }
+
+                    expect_symbol = !expect_symbol;
+                    last++;
+                }
+
+                // Syntax error occurred
+                if(last == range.a)
+                {
+                    UNUM_FREE(val->names);
+                    return UNUM_OBJ_DEF;
+                }
+            } else {
+                // Create symbol from token (with first character removed)
+                val->names[0] = Unum_Internal_Utility_Strdup(active.value + (sizeof(txt) * 1));
+            }
+
+            // Set object properties
+            // Copy first symbol as name
+            obj.name = Unum_Internal_Utility_Strdup(val->names[0]);
+            obj.data = val;
+            obj.type = UNUM_OBJ_SYMBOL;
+        } else {
+            // Symbol refers to an object
+
+            // Get object
+            obj = Unum_Internal_Execute_Level(c, idx.a)->objects[idx.b];
+
+            // Check for member access
+            if(range.b < c->program.count && strcmp(c->program.tokens[range.a + 1].value, ".") == 0)
+            {
+                bool expect_symbol = UNUM_FALSE;
+                size last = range.a + 1;
+
+                // Seek to end of member access chain
+                while(last < range.b)
+                {
+                    // Check for operator/symbol
+                    if(expect_symbol)
+                    {
+                        if(c->program.tokens[last].type != UNUM_LANG_SYMBOL)
+                        {
+                            last = range.a;
+                            break;
+                        }
+
+                        // Verify next member
+                        if(obj.data == NULL)
+                        {
+                            last = range.a;
+                            break;
+                        }
+
+                        // Get next member
+                        if(obj.type == UNUM_OBJ_SET)
+                        {
+                            UnumInternalObjSet* set = ((UnumInternalObjSet*)obj.data);
+
+                            // Todo - Optimize with hash map
+                            bool found = UNUM_FALSE;
+                            for(size si = 0; si < set->count; si++)
+                            {
+                                if(strcmp(set->keys[si], c->program.tokens[last].value) == 0)
+                                {
+                                    found = UNUM_TRUE;
+                                    obj = set->values[si];
+                                    break;
+                                }
+                            }
+
+                            // Member name not found
+                            if(!found)
+                            {
+                                last = range.a;
+                                break;
+                            }
+
+                        } else if(obj.type == UNUM_OBJ_ARRAY) {
+                            // Idea - Allow for access in the future via member operator
+                            // For now return an error
+                            last = range.a;
+                            break;
+                        } else if(obj.type == UNUM_OBJ_NAMESPACE) {
+                            UnumInternalObjNamespace* nspace = ((UnumInternalObjNamespace*)obj.data);
+
+                            // Todo - Optimize with hash map
+                            bool found = UNUM_FALSE;
+                            for(size ni = 0; ni < nspace->count; ni++)
+                            {
+                                if(strcmp(nspace->objects[ni].name, c->program.tokens[last].value) == 0)
+                                {
+                                    found = UNUM_TRUE;
+                                    obj = nspace->objects[ni];
+                                    break;
+                                }
+                            }
+
+                            // Member name not found
+                            if(!found)
+                            {
+                                last = range.a;
+                                break;
+                            }
+                        } else if(obj.type == UNUM_OBJ_STRUCTURE) {
+                            // Todo - Implement
+                            // For now return an error
+                            last = range.a;
+                            break;
+                        } else {
+                            // Can't use member access operator here
+                            last = range.a;
+                            break;
+                        }
+
+                    } else {
+                        if(strcmp(c->program.tokens[last].value, ".") != 0)
+                        {
+                            last = range.a;
+                            break;
+                        }
+                    }
+
+                    expect_symbol = !expect_symbol;
+                    last++;
+                }
+
+                // Syntax error occurred
+                if(last == range.a)
+                {
+                    return UNUM_OBJ_DEF;
+                }
+            }
         }
 
-        // Get object
-        UnumInternalObject obj = Unum_Internal_Execute_Level(c, idx.a)->objects[idx.b];
+        /*
+        // Check if this token is referring to an object or a function call
+        if(range.a > 0 && (c->program.tokens[range.a - 1].type == UNUM_LANG_SYMBOL ||
+                           strcmp(c->program.tokens[range.a - 1].value, ",")))
+        {
+            // Object
+        } else {
+            // Function call
+        }
+        */
+
+        // Return object
+        return obj;
+
+        // Handle symbol constants
+    } else if(active.type == UNUM_LANG_WORD) {
+        // Create symbol object
+        UnumInternalObjSymbol* val = UNUM_MALLOC(sizeof(UnumInternalObjSymbol) * 1);
+        val->count = 1;
+        val->names = UNUM_MALLOC(sizeof(str*) * val->count);
+
+        // Check for member access
+        if(range.b < c->program.count && strcmp(c->program.tokens[range.a + 1].value, ".") == 0)
+        {
+            bool expect_symbol = UNUM_FALSE;
+            size last = range.a + 1;
+
+            // Seek to end of member access chain
+            while(last < range.b)
+            {
+                // Check for operator/symbol
+                if(expect_symbol)
+                {
+                    if(c->program.tokens[last].type != UNUM_LANG_SYMBOL ||
+                            c->program.tokens[last].type != UNUM_LANG_WORD)
+                    {
+                        last = range.a;
+                        break;
+                    }
+
+                    // Add next symbol
+                    val->count++;
+                    val->names = UNUM_REALLOC(val->names, sizeof(str*) * val->count);
+
+                    // Check if symbol
+                    if(c->program.tokens[last].type == UNUM_LANG_SYMBOL)
+                        // Copy full string
+                        val->names[val->count - 1] = Unum_Internal_Utility_Strdup(c->program.tokens[last].value);
+                    else
+                        // Skip first character (symbolize operator)
+                        val->names[val->count - 1] = Unum_Internal_Utility_Strdup(c->program.tokens[last].value + (sizeof(txt) + 1));
+                } else {
+                    if(strcmp(c->program.tokens[last].value, ".") != 0)
+                    {
+                        last = range.a;
+                        break;
+                    }
+                }
+
+                expect_symbol = !expect_symbol;
+                last++;
+            }
+
+            // Syntax error occurred
+            if(last == range.a)
+            {
+                UNUM_FREE(val->names);
+                return UNUM_OBJ_DEF;
+            }
+        } else {
+            // Create symbol from token (with first character removed)
+            val->names[0] = Unum_Internal_Utility_Strdup(active.value + (sizeof(txt) * 1));
+        }
+
+        // Create object
+        // Copy first symbol as name
+        UnumInternalObject obj;
+        obj.name = Unum_Internal_Utility_Strdup(val->names[0]);
+        obj.data = val;
+        obj.type = UNUM_OBJ_SYMBOL;
 
         // Return object
         return obj;
@@ -1363,6 +1686,8 @@ UNUM_DEF UnumInternalObject Unum_Internal_Execute_Expressions(UnumInstance* c, U
             // End with pass operator/end operator
             arg_range.b = u == expressions.num - 1 ? expressions.pairs[u].b : expressions.pairs[u + 1].a - 1;
 
+            unum_log("Pair: \"%s\" and \"%s\"", c->program.tokens[arg_range.a].value, c->program.tokens[arg_range.b].value);
+
             // Parse arguments
             UnumInternalPairList args = Unum_Internal_Parse_Separate(c->program, arg_range, ",");
             Unum_Debug_Pair(c->program, args);
@@ -1465,7 +1790,7 @@ UNUM_DEF UnumInternalObject Unum_Internal_Execute_Expressions(UnumInstance* c, U
                     if(obj_stack_id.b == 0)
                         continue;
                     // Object is on lower level, meaning modifying its value is meaningful
-                    if(obj_stack_id.a < Unum_Internal_Execute_Stacklevel(c))
+                    if(obj_stack_id.a < Unum_Internal_Execute_Stack_Level(c))
                         Unum_Internal_Execute_Level(c, obj_stack_id.a)->objects[obj_stack_id.b] = ns->objects[si];
                 }
 
@@ -1521,101 +1846,6 @@ UNUM_DEF UnumInternalObject Unum_Internal_Execute_Expressions(UnumInstance* c, U
 
         // Free expression ranges
         UNUM_FREE(expressions.pairs);
-
-        // Check if last expression
-        if(i == top.num - 1)
-        {
-        }
-
-        // END
-
-        /*
-        // Iterate over statements
-        for(size i = 0; i < top.num; i++)
-        {
-            // First token should be function/keyword name
-            size current = top.pairs[i].a;
-            str fname = c->program.tokens[current].value;
-            // Check if keyword
-            if(c->program.tokens[current].type == UNUM_LANG_KEYWORD)
-            {
-                // Check which keyword
-
-                // Function
-                if(strstr(fname, UNUM_KEYWORDS[UNUM_KEYWORD_FUNCTION].name) != NULL)
-                {
-                    size num;
-                    UnumInternalPair* params = Unum_Internal_Parse_Parameters(c->program, current + 1, &num);
-                    UnumResult u = Unum_Internal_Keyword_Function(c, params, current);
-                    if(u.code != UNUM_CODE_NEUTRAL)
-                        return u;
-
-                    // Parameters
-                } else if(strstr(fname, UNUM_KEYWORDS[UNUM_KEYWORD_PARAMETERS].name) != NULL)
-                {
-                    // Ensure call is after a pass
-                    if(i == 0)
-                        return UNUM_INTERNAL_RESULT("@parameters keyword must always follow a pass operator", current, UNUM_CODE_SYNTAX_ERROR);
-
-                    size num;
-                    UnumInternalPair* params = Unum_Internal_Parse_Parameters(c->program, current + 1, &num);
-                    UnumResult u = Unum_Internal_Keyword_Parameters(c, params, current);
-                    if(u.code != UNUM_CODE_NEUTRAL)
-                        return u;
-
-                    // Result
-                } else if(strstr(fname, UNUM_KEYWORDS[UNUM_KEYWORD_RESULT].name) != NULL)
-                {
-                    // Ensure call is after a pass
-                    if(i == 0)
-                        return UNUM_INTERNAL_RESULT("@result keyword must always follow a pass operator", current, UNUM_CODE_SYNTAX_ERROR);
-
-                    size num;
-                    UnumInternalPair* params = Unum_Internal_Parse_Parameters(c->program, current + 1, &num);
-                    UnumResult u = Unum_Internal_Keyword_Result(c, params, current);
-                    if(u.code != UNUM_CODE_NEUTRAL)
-                        return u;
-
-                    // Body
-                } else if(strstr(fname, UNUM_KEYWORDS[UNUM_KEYWORD_BODY].name) != NULL)
-                {
-                    // Ensure call is after a pass
-                    if(i == 0)
-                        return UNUM_INTERNAL_RESULT("@body keyword must always follow a pass operator", current, UNUM_CODE_SYNTAX_ERROR);
-
-                    // Unknown keyword
-                } else {
-                    return UNUM_INTERNAL_RESULT("Unknown keyword", current, UNUM_CODE_SYNTAX_ERROR);
-                }
-
-                // Check if function
-            } else if(c->program.tokens[current].type == UNUM_LANG_SYMBOL) {
-                // Try function matching
-                // Todo - Optimize with hash table
-                // Remember, functions[0] and objects[0] are supposed to be null
-                size id = 0;
-                for(size u = 0; u < c->stack.function_count; u++)
-                {
-                    if(strcmp(c->stack.functions[u].name, fname) == 0)
-                    {
-                        id = u;
-                        break;
-                    }
-                }
-
-                // Verify function exists
-                if(id == 0)
-                    return UNUM_INTERNAL_RESULT("Unknown/non-existent function name", current, UNUM_CODE_RUNTIME_ERROR);
-
-                // Todo - Call function
-
-                // No matches, return error
-            } else {
-                UNUM_FREE(top);
-                return UNUM_INTERNAL_RESULT("Expected symbol/keyword for function", current, UNUM_CODE_SYNTAX_ERROR);
-            }
-        }
-            */
     }
 
     // Free overall expression ranges
@@ -1638,21 +1868,26 @@ UNUM_DEF UnumInternalObject Unum_Internal_Execute_Expressions(UnumInstance* c, U
 // Unum standard libraries
 #include "libraries/UMath.h"
 
-UNUM_DEF UnumResult Unum_Execute(UnumInstance* c, str code)
+UNUM_DEF i32 Unum_Execute(UnumInstance* c, str code)
 {
     c->program = Unum_Internal_Tokenize(code);
     UnumInternalObject ob = Unum_Internal_Execute_Expressions(c, (UnumInternalPair){.a = 0, .b = c->program.count});
 
-    if(Unum_Internal_Execute_Obj_Null(ob))
+    if(!Unum_Internal_Execute_Obj_Null(ob))
     {
-        return UNUM_INTERNAL_RESULT("Error", 0, UNUM_CODE_RUNTIME_ERROR);
-    } else {
         c->stack.objects = UNUM_REALLOC(c->stack.objects, sizeof(UnumInternalObject) * (c->stack.count + 1));
         c->stack.objects[c->stack.count] = ob;
         c->stack.count++;
 
-        return UNUM_INTERNAL_RESULT_OK;
+        Unum_Internal_Exception(c, "Ok", UNUM_CODE_NEUTRAL, 0);
+    } else {
+        if(c->result.message == NULL)
+        {
+            Unum_Internal_Exception(c, "Unknown error", UNUM_CODE_RUNTIME_ERROR, 0);
+        }
     }
+
+    return c->result.result;
 }
 
 UNUM_DEF UnumInstance* Unum_Initialize(void)
@@ -1661,6 +1896,14 @@ UNUM_DEF UnumInstance* Unum_Initialize(void)
 
     UnumInstance* res = UNUM_MALLOC(sizeof(UnumInstance));
 
+    // Create default result
+    res->result.code = UNUM_CODE_NEUTRAL;
+    res->result.result = 0;
+    res->result.status = UNUM_CODES[UNUM_CODE_NEUTRAL].level;
+    res->result.message = NULL;
+    res->result.location = 0;
+
+    // Create stack
     res->stack.count = (sizeof(UNUM_OBJECT_PRIMITIVES) / sizeof(UnumInternalObject)) + 1;
     res->stack.objects = UNUM_MALLOC(sizeof(UnumInternalObject) * res->stack.count);
 
@@ -1675,8 +1918,8 @@ UNUM_DEF UnumInstance* Unum_Initialize(void)
     memcpy(res->native, UNUM_NATIVE_MATH, sizeof(UNUM_NATIVE_MATH));
 
     // Load standard libraries
-    UnumResult r = Unum_Execute(res, UNUM_LIBRARY_MATH);
-    if(r.code != UNUM_CODE_NEUTRAL)
+    i32 r = Unum_Execute(res, UNUM_LIBRARY_MATH);
+    if(r < 0)
     {
         UNUM_FREE(res);
         return NULL;

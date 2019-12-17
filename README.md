@@ -13,7 +13,7 @@ The usual "Hello World" example:
 ```
 # A comment
 
-@function main ->
+@function $main ->
 @parameters { args: String } ->
 @result int ->
 @body

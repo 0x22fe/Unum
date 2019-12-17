@@ -90,9 +90,9 @@
 
 // Debug macro - Log/Assert function
 #ifdef UNUM_DEBUG
-#define unum_log(...) printf("[Unum][%u ms]: ", Unum_Time() / 1000U); printf(__VA_ARGS__); printf("\n"); unum_flush()
+#define unum_log(...) printf("[Unum][%u ms]: ", Unum_Internal_Time() / 1000U); printf(__VA_ARGS__); printf("\n"); unum_flush()
 #else
-#define unum_log(...) printf("[Unum][%u ms]: ", Unum_Time() / 1000U); printf(__VA_ARGS__); printf("\n")
+#define unum_log(...) printf("[Unum][%u ms]: ", Unum_Internal_Time() / 1000U); printf(__VA_ARGS__); printf("\n")
 #undef assert
 #define assert ;
 #endif
@@ -199,7 +199,8 @@ typedef struct UnumInternalObjType
 
 typedef struct UnumInternalObjSymbol
 {
-    str name;
+    size count;
+    str* names;
 } UnumInternalObjSymbol;
 
 typedef struct UnumInternalObjSingle
@@ -229,7 +230,9 @@ typedef struct UnumInternalObjExpression
 
 typedef struct UnumInternalObjNamespace
 {
-    UnumInternalObject* values;
+    str name;
+    size count;
+    UnumInternalObject* objects;
 } UnumInternalObjNamespace;
 
 typedef struct UnumInternalObjAlias
@@ -268,7 +271,8 @@ typedef struct UnumInternalNative
 typedef enum UnumInternalLang
 {
     UNUM_LANG_BLANK = 0,
-    UNUM_LANG_KEYWORD, UNUM_LANG_SYMBOL, UNUM_LANG_CHAR, UNUM_LANG_STRING, UNUM_LANG_NUMBER, UNUM_LANG_OPERATOR
+    UNUM_LANG_KEYWORD, UNUM_LANG_SYMBOL, UNUM_LANG_WORD,
+    UNUM_LANG_CHAR, UNUM_LANG_STRING, UNUM_LANG_NUMBER, UNUM_LANG_OPERATOR
 } UnumInternalLang;
 
 typedef struct UnumInternalToken
@@ -284,19 +288,6 @@ typedef struct UnumInternalTokens
     str statement;
     UnumInternalToken* tokens;
 } UnumInternalTokens;
-
-typedef struct UnumInstance
-{
-    UnumInternalStack stack;
-    UnumInternalTokens program;
-    UnumInternalNative* native;
-} UnumInstance;
-
-typedef struct UnumInternalKeyword
-{
-    str name;
-    UnumInternalObject (*func)(UnumInstance*, UnumInternalStack*);
-} UnumInternalKeyword;
 
 /****************************************************************
  * Other types
@@ -334,7 +325,7 @@ typedef enum UnumInternalPrimitives
 typedef enum UnumInternalOperators
 {
     UNUM_OPERATOR_COMMENT_SINGLE = 0, UNUM_OPERATOR_COMMENT_MULTIPLE,
-    UNUM_OPERATOR_COMPILER,
+    UNUM_OPERATOR_COMPILER, UNUM_OPERATOR_SYMBOLIZE,
     UNUM_OPERATOR_CHAR_START, UNUM_OPERATOR_CHAR_END,
     UNUM_OPERATOR_STRING_START, UNUM_OPERATOR_STRING_END,
     UNUM_OPERATOR_MEMBER,
@@ -348,21 +339,38 @@ typedef struct UnumCodeInfo
 {
     str message;
     UnumStatus level;
+    i32 result;
 } UnumCodeInfo;
 
 typedef struct UnumResult
 {
-    size location;
-    UnumCode code;
     str message;
+    UnumCode code;
+    UnumStatus status;
+    size location;
     i32 result;
 } UnumResult;
+
+typedef struct UnumInstance
+{
+    UnumResult result;
+    UnumInternalStack stack;
+    UnumInternalTokens program;
+    UnumInternalNative* native;
+} UnumInstance;
+
+typedef struct UnumInternalKeyword
+{
+    str name;
+    UnumInternalObject (*func)(UnumInstance*, UnumInternalStack*);
+} UnumInternalKeyword;
 
 /****************************************************************
  * Declarations
  ****************************************************************/
 
-UNUM_DEF size Unum_Time(void);
+UNUM_DEF size Unum_Internal_Time(void);
+UNUM_DEF void Unum_Internal_Exception(UnumInstance* c, str msg, UnumCode code, size tok);
 UNUM_DEF bool Unum_Internal_Utility_Txtvalid(txt s);
 UNUM_DEF bool Unum_Internal_Utility_Strstart(str s, str starts);
 UNUM_DEF str Unum_Internal_Utility_Strdup(str s);
@@ -387,7 +395,7 @@ UNUM_DEF bool Unum_Internal_Execute_Obj_Null(UnumInternalObject o);
 UNUM_DEF void Unum_Internal_Execute_Obj_Clear(UnumInternalObject o);
 UNUM_DEF bool Unum_Internal_Execute_Same_Type(UnumInternalObject a, UnumInternalObject b);
 UNUM_DEF UnumInternalPair Unum_Internal_Execute_Id(UnumInstance* c, str name);
-UNUM_DEF size Unum_Internal_Execute_Stacklevel(UnumInstance* c);
+UNUM_DEF size Unum_Internal_Execute_Stack_Level(UnumInstance* c);
 UNUM_DEF UnumInternalStack* Unum_Internal_Execute_Stack(UnumInstance* c);
 UNUM_DEF UnumInternalStack* Unum_Internal_Execute_Level(UnumInstance* c, size lvl);
 UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Function(UnumInstance* c, UnumInternalStack* params);
@@ -400,7 +408,7 @@ UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Body(UnumInstance* c, UnumInte
 UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Return(UnumInstance* c, UnumInternalStack* params);
 UNUM_DEF UnumInternalObject Unum_Internal_Execute_Data(UnumInstance* c, UnumInternalStack* ns, UnumInternalPair range);
 UNUM_DEF UnumInternalObject Unum_Internal_Execute_Expressions(UnumInstance* c, UnumInternalPair p);
-UNUM_DEF UnumResult Unum_Execute(UnumInstance* c, str code);
+UNUM_DEF i32 Unum_Execute(UnumInstance* c, str code);
 UNUM_DEF UnumInstance* Unum_Initialize(void);
 UNUM_DEF void Unum_Destroy(UnumInstance* c);
 
@@ -418,9 +426,9 @@ static const str UNUM_STATUSES[] =
 
 static const UnumCodeInfo UNUM_CODES[] =
 {
-    [UNUM_CODE_NEUTRAL] = {.message = "Ok", .level = UNUM_STATUS_OK},
-    [UNUM_CODE_SYNTAX_ERROR] = {.message = "Syntax error", .level = UNUM_STATUS_ERROR},
-    [UNUM_CODE_RUNTIME_ERROR] = {.message = "Runtime error", .level = UNUM_STATUS_ERROR}
+    [UNUM_CODE_NEUTRAL] = {.message = "Ok", .level = UNUM_STATUS_OK, .result = 0},
+    [UNUM_CODE_SYNTAX_ERROR] = {.message = "Syntax error", .level = UNUM_STATUS_ERROR, .result = -1},
+    [UNUM_CODE_RUNTIME_ERROR] = {.message = "Runtime error", .level = UNUM_STATUS_ERROR, .result = -2}
 };
 
 static const str UNUM_OPERATORS[] =
@@ -428,6 +436,7 @@ static const str UNUM_OPERATORS[] =
     [UNUM_OPERATOR_COMMENT_SINGLE] = "#",
     [UNUM_OPERATOR_COMMENT_MULTIPLE] = "##",
     [UNUM_OPERATOR_COMPILER] = "@",
+    [UNUM_OPERATOR_SYMBOLIZE] = "$",
     [UNUM_OPERATOR_CHAR_START] = "'",
     [UNUM_OPERATOR_CHAR_END] = "'",
     [UNUM_OPERATOR_STRING_START] = "\"",
