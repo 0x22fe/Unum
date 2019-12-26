@@ -1,10 +1,14 @@
 <img src="https://github.com/0x22fe/Unum/blob/master/icon.png" width="64" height="auto" alt="Unum Language Logo"/>
 
 # Unum
+## Version 1.0.0
 A programming language designed for simplicity, concurrency, and flow.
 
 # Status
 The project is currently in active development and an initial working version is almost ready.
+
+# Code
+The project is written in C99, however it may be changed to C89 for improved compatibility.
 
 # Examples
 
@@ -19,18 +23,19 @@ The usual "Hello World" example:
 @body
 (
     io.print "Hello, World!";
-    @return 0;
-)
+    @return 0
+);
 
 ```
 
-More examples coming soon!
+_More examples coming soon!_
 
 # Planned features
 
 Features that are planned or already in development include:
 
 * More efficient and cleaner codebase
+* Better interface for native functions
 * Internal memory pool
 * Unified error reporting and handling
 * Full unicode character support

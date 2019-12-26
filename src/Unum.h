@@ -45,7 +45,9 @@
  * 3rd Party Libraries
  ****************************************************************/
 
+#ifdef UNUM_EXT
 #include <plibsys.h>
+#endif
 
 /****************************************************************
  * Internal Libraries
@@ -54,7 +56,7 @@
 // Coming soon!
 
 /****************************************************************
- * Include Guards and Definitions
+ * Preprocessor Definitions
  ****************************************************************/
 
 #ifndef UNUM_INCLUDE
@@ -87,12 +89,15 @@
 #define unum_flush() fflush(stdout)
 
 // Debug Macro - UNUM_DEBUG
+#ifdef CMAKE_UNUM_DEBUG
+#define UNUM_DEBUG
+#endif
 
 // Debug macro - Log/Assert function
 #ifdef UNUM_DEBUG
 #define unum_log(...) printf("[Unum][%u ms]: ", Unum_Internal_Time() / 1000U); printf(__VA_ARGS__); printf("\n"); unum_flush()
 #else
-#define unum_log(...) printf("[Unum][%u ms]: ", Unum_Internal_Time() / 1000U); printf(__VA_ARGS__); printf("\n")
+#define unum_log(...)
 #undef assert
 #define assert ;
 #endif
@@ -128,16 +133,15 @@
 #define UNUM_FREE free
 #endif
 
-/****************************************************************
- * Preprocessor Constants
- ****************************************************************/
-
 // C++ handler
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-// Type definitions
+/****************************************************************
+ * Type Declarations
+ ****************************************************************/
+
 typedef float_t f32;
 typedef double_t f64;
 
@@ -159,8 +163,89 @@ typedef txt* str;
 typedef u32 size;
 typedef void* any;
 
+struct UnumInternalPair;
+struct UnumInternalPairList;
+struct UnumInternalObject;
+struct UnumInternalStack;
+struct UnumInternalObjType;
+struct UnumInternalObjSymbol;
+struct UnumInternalObjSingle;
+struct UnumInternalObjArray;
+struct UnumInternalObjSet;
+struct UnumInternalObjExpression;
+struct UnumInternalObjNamespace;
+struct UnumInternalObjAlias;
+struct UnumInternalObjFunction;
+struct UnumInternalObjStructure;
+struct UnumInternalKeyword;
+struct UnumInternalNative;
+struct UnumInternalToken;
+struct UnumInternalTokens;
+struct UnumInstance;
+struct UnumCodeInfo;
+struct UnumResult;
+
+/*
+enum UnumInternalObjectType;
+enum UnumInternalLang;
+enum UnumStatus;
+enum UnumCode;
+enum UnumInternalKeywords;
+enum UnumInternalPrimitives;
+enum UnumInternalOperators;
+*/
+
 /****************************************************************
- * Types
+ * Enums
+ ****************************************************************/
+
+typedef enum UnumStatus
+{
+    UNUM_STATUS_OK = 0,
+    UNUM_STATUS_DEBUG,
+    UNUM_STATUS_WARNING, UNUM_STATUS_ERROR
+} UnumStatus;
+
+typedef enum UnumCode
+{
+    UNUM_CODE_NEUTRAL = 0,
+    UNUM_CODE_SYNTAX_ERROR, UNUM_CODE_RUNTIME_ERROR
+} UnumCode;
+
+typedef enum UnumInternalKeywords
+{
+    UNUM_KEYWORD_BLANK = 0,
+    UNUM_KEYWORD_NATIVE,
+    UNUM_KEYWORD_ALIAS,
+    UNUM_KEYWORD_NAMESPACE, UNUM_KEYWORD_FUNCTION, UNUM_KEYWORD_STRUCTURE, UNUM_KEYWORD_VARIABLE,
+    UNUM_KEYWORD_PARAMETERS, UNUM_KEYWORD_RESULT, UNUM_KEYWORD_BODY, UNUM_KEYWORD_RETURN
+} UnumInternalKeywords;
+
+typedef enum UnumInternalPrimitives
+{
+    UNUM_PRIMITIVE_NULL = 1,
+    UNUM_PRIMITIVE_ANY,
+    UNUM_PRIMITIVE_I8, UNUM_PRIMITIVE_I16, UNUM_PRIMITIVE_I32, UNUM_PRIMITIVE_I64,
+    UNUM_PRIMITIVE_U8, UNUM_PRIMITIVE_U16, UNUM_PRIMITIVE_U32, UNUM_PRIMITIVE_U64,
+    UNUM_PRIMITIVE_F32, UNUM_PRIMITIVE_F64,
+    UNUM_PRIMITIVE_BOOL
+} UnumInternalPrimitives;
+
+typedef enum UnumInternalOperators
+{
+    UNUM_OPERATOR_COMMENT_SINGLE = 0, UNUM_OPERATOR_COMMENT_MULTIPLE,
+    UNUM_OPERATOR_COMPILER, UNUM_OPERATOR_SYMBOLIZE,
+    UNUM_OPERATOR_CHAR_START, UNUM_OPERATOR_CHAR_END,
+    UNUM_OPERATOR_STRING_START, UNUM_OPERATOR_STRING_END,
+    UNUM_OPERATOR_MEMBER,
+    UNUM_OPERATOR_PASS, UNUM_OPERATOR_END, UNUM_OPERATOR_SEPARATE,
+    UNUM_OPERATOR_SET_START, UNUM_OPERATOR_SET_END,
+    UNUM_OPERATOR_ARRAY_START, UNUM_OPERATOR_ARRAY_END,
+    UNUM_OPERATOR_EXPRESSION_START, UNUM_OPERATOR_EXPRESSION_END
+} UnumInternalOperators;
+
+/****************************************************************
+ * Structs
  ****************************************************************/
 
 typedef struct UnumInternalPair
@@ -178,7 +263,8 @@ typedef struct UnumInternalPairList
 typedef enum UnumInternalObjectType
 {
     UNUM_OBJ_BLANK = 0,
-    UNUM_OBJ_DATA, UNUM_OBJ_TYPE, UNUM_OBJ_STACK, UNUM_OBJ_SYMBOL,
+    UNUM_OBJ_ANY, UNUM_OBJ_DATA,
+    UNUM_OBJ_TYPE, UNUM_OBJ_STACK, UNUM_OBJ_SYMBOL,
     UNUM_OBJ_SINGLE, UNUM_OBJ_ARRAY, UNUM_OBJ_SET, UNUM_OBJ_EXPRESSION,
     UNUM_OBJ_FUNCTION, UNUM_OBJ_STRUCTURE, UNUM_OBJ_NAMESPACE, UNUM_OBJ_ALIAS
 } UnumInternalObjectType;
@@ -189,6 +275,12 @@ typedef struct UnumInternalObject
     any data;
     UnumInternalObjectType type;
 } UnumInternalObject;
+
+typedef struct UnumInternalStack
+{
+    size count;
+    UnumInternalObject* objects;
+} UnumInternalStack;
 
 typedef struct UnumInternalObjType
 {
@@ -231,8 +323,7 @@ typedef struct UnumInternalObjExpression
 typedef struct UnumInternalObjNamespace
 {
     str name;
-    size count;
-    UnumInternalObject* objects;
+    UnumInternalStack stack;
 } UnumInternalObjNamespace;
 
 typedef struct UnumInternalObjAlias
@@ -243,7 +334,7 @@ typedef struct UnumInternalObjAlias
 
 typedef struct UnumInternalObjFunction
 {
-    UnumInternalObjExpression* body;
+    UnumInternalObjExpression body;
     UnumInternalObjSet parameters;
     UnumInternalObjType result; // May switch to set to allow multiple return types in the future
 } UnumInternalObjFunction;
@@ -254,16 +345,16 @@ typedef struct UnumInternalObjStructure
     UnumInternalObjFunction* functions;
 } UnumInternalObjStructure;
 
-typedef struct UnumInternalStack
+typedef struct UnumInternalKeyword
 {
-    size count;
-    UnumInternalObject* objects;
-} UnumInternalStack;
+    str name;
+    UnumInternalObject (*func)(struct UnumInstance*, UnumInternalStack*);
+} UnumInternalKeyword;
 
 typedef struct UnumInternalNative
 {
     str name;
-    any function;
+    UnumInternalObject (*function)(struct UnumInstance*, UnumInternalStack*);
     UnumInternalObject* params;
     UnumInternalObject result; // Possibly allow for multiple return types in the future
 } UnumInternalNative;
@@ -289,52 +380,6 @@ typedef struct UnumInternalTokens
     UnumInternalToken* tokens;
 } UnumInternalTokens;
 
-/****************************************************************
- * Other types
- ****************************************************************/
-
-typedef enum UnumStatus
-{
-    UNUM_STATUS_OK = 0,
-    UNUM_STATUS_DEBUG,
-    UNUM_STATUS_WARNING, UNUM_STATUS_ERROR
-} UnumStatus;
-
-typedef enum UnumCode
-{
-    UNUM_CODE_NEUTRAL = 0,
-    UNUM_CODE_SYNTAX_ERROR, UNUM_CODE_RUNTIME_ERROR
-} UnumCode;
-
-typedef enum UnumInternalKeywords
-{
-    UNUM_KEYWORD_BLANK = 0,
-    UNUM_KEYWORD_NAMESPACE, UNUM_KEYWORD_ALIAS, UNUM_KEYWORD_FUNCTION, UNUM_KEYWORD_STRUCTURE,
-    UNUM_KEYWORD_PARAMETERS, UNUM_KEYWORD_RESULT, UNUM_KEYWORD_BODY, UNUM_KEYWORD_RETURN
-} UnumInternalKeywords;
-
-typedef enum UnumInternalPrimitives
-{
-    UNUM_PRIMITIVE_NULL = 0,
-    UNUM_PRIMITIVE_I8, UNUM_PRIMITIVE_I16, UNUM_PRIMITIVE_I32, UNUM_PRIMITIVE_I64,
-    UNUM_PRIMITIVE_U8, UNUM_PRIMITIVE_U16, UNUM_PRIMITIVE_U32, UNUM_PRIMITIVE_U64,
-    UNUM_PRIMITIVE_F32, UNUM_PRIMITIVE_F64,
-    UNUM_PRIMITIVE_BOOL
-} UnumInternalPrimitives;
-
-typedef enum UnumInternalOperators
-{
-    UNUM_OPERATOR_COMMENT_SINGLE = 0, UNUM_OPERATOR_COMMENT_MULTIPLE,
-    UNUM_OPERATOR_COMPILER, UNUM_OPERATOR_SYMBOLIZE,
-    UNUM_OPERATOR_CHAR_START, UNUM_OPERATOR_CHAR_END,
-    UNUM_OPERATOR_STRING_START, UNUM_OPERATOR_STRING_END,
-    UNUM_OPERATOR_MEMBER,
-    UNUM_OPERATOR_PASS, UNUM_OPERATOR_END, UNUM_OPERATOR_SEPARATE,
-    UNUM_OPERATOR_SET_START, UNUM_OPERATOR_SET_END,
-    UNUM_OPERATOR_ARRAY_START, UNUM_OPERATOR_ARRAY_END,
-    UNUM_OPERATOR_EXPRESSION_START, UNUM_OPERATOR_EXPRESSION_END
-} UnumInternalOperators;
-
 typedef struct UnumCodeInfo
 {
     str message;
@@ -353,24 +398,23 @@ typedef struct UnumResult
 
 typedef struct UnumInstance
 {
+    str code;
     UnumResult result;
+
     UnumInternalStack stack;
     UnumInternalTokens program;
+
+    size count;
     UnumInternalNative* native;
 } UnumInstance;
 
-typedef struct UnumInternalKeyword
-{
-    str name;
-    UnumInternalObject (*func)(UnumInstance*, UnumInternalStack*);
-} UnumInternalKeyword;
-
 /****************************************************************
- * Declarations
+ * Function Declarations
  ****************************************************************/
 
 UNUM_DEF size Unum_Internal_Time(void);
 UNUM_DEF void Unum_Internal_Exception(UnumInstance* c, str msg, UnumCode code, size tok);
+UNUM_DEF bool Unum_Internal_Valid(any p);
 UNUM_DEF bool Unum_Internal_Utility_Txtvalid(txt s);
 UNUM_DEF bool Unum_Internal_Utility_Strstart(str s, str starts);
 UNUM_DEF str Unum_Internal_Utility_Strdup(str s);
@@ -386,9 +430,9 @@ UNUM_DEF str Unum_Internal_Parse_Number(str start);
 UNUM_DEF str Unum_Internal_Parse_Operator(str start);
 UNUM_DEF UnumInternalTokens Unum_Internal_Tokenize(str code);
 UNUM_DEF UnumInternalPair Unum_Internal_Parse_Match(UnumInternalTokens t, size start);
-UNUM_DEF UnumInternalPairList Unum_Internal_Parse_Separate(UnumInternalTokens t, UnumInternalPair range, str sep);
-UNUM_DEF UnumInternalPair* Unum_Internal_Parse_Arguments(UnumInternalTokens t, size start, size* out_num);
+UNUM_DEF UnumInternalPairList Unum_Internal_Parse_Separate(UnumInternalTokens t, UnumInternalPair range, str sep, bool allow_skip);
 UNUM_DEF void Unum_Debug_Pair(UnumInternalTokens s, UnumInternalPairList p);
+UNUM_DEF void Unum_Debug_Sequence(UnumInternalTokens s, UnumInternalPair p);
 UNUM_DEF void Unum_Debug_Object(UnumInternalTokens s, UnumInternalObject p);
 UNUM_DEF bool Unum_Internal_Execute_Obj_Safe(UnumInternalObject o);
 UNUM_DEF bool Unum_Internal_Execute_Obj_Null(UnumInternalObject o);
@@ -404,10 +448,12 @@ UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Result(UnumInstance* c, UnumIn
 UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Namespace(UnumInstance* c, UnumInternalStack* params);
 UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Alias(UnumInstance* c, UnumInternalStack* params);
 UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Structure(UnumInstance* c, UnumInternalStack* params);
+UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Variable(UnumInstance* c, UnumInternalStack* params);
 UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Body(UnumInstance* c, UnumInternalStack* params);
 UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Return(UnumInstance* c, UnumInternalStack* params);
+UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Native(UnumInstance* c, UnumInternalStack* params);
 UNUM_DEF UnumInternalObject Unum_Internal_Execute_Data(UnumInstance* c, UnumInternalStack* ns, UnumInternalPair range);
-UNUM_DEF UnumInternalObject Unum_Internal_Execute_Expressions(UnumInstance* c, UnumInternalPair p);
+UNUM_DEF UnumInternalObject Unum_Internal_Execute_Expressions(UnumInstance* c, UnumInternalStack* base, UnumInternalPair p);
 UNUM_DEF i32 Unum_Execute(UnumInstance* c, str code);
 UNUM_DEF UnumInstance* Unum_Initialize(void);
 UNUM_DEF void Unum_Destroy(UnumInstance* c);
@@ -416,7 +462,7 @@ UNUM_DEF void Unum_Destroy(UnumInstance* c);
  * Constants
  ****************************************************************/
 
-static const str UNUM_STATUSES[] =
+static str UNUM_STATUSES[] =
 {
     [UNUM_STATUS_OK] = "Ok",
     [UNUM_STATUS_DEBUG] = "Debug",
@@ -424,14 +470,14 @@ static const str UNUM_STATUSES[] =
     [UNUM_STATUS_ERROR] = "Error"
 };
 
-static const UnumCodeInfo UNUM_CODES[] =
+static UnumCodeInfo UNUM_CODES[] =
 {
     [UNUM_CODE_NEUTRAL] = {.message = "Ok", .level = UNUM_STATUS_OK, .result = 0},
     [UNUM_CODE_SYNTAX_ERROR] = {.message = "Syntax error", .level = UNUM_STATUS_ERROR, .result = -1},
     [UNUM_CODE_RUNTIME_ERROR] = {.message = "Runtime error", .level = UNUM_STATUS_ERROR, .result = -2}
 };
 
-static const str UNUM_OPERATORS[] =
+static str UNUM_OPERATORS[] =
 {
     [UNUM_OPERATOR_COMMENT_SINGLE] = "#",
     [UNUM_OPERATOR_COMMENT_MULTIPLE] = "##",
@@ -456,10 +502,12 @@ static const str UNUM_OPERATORS[] =
 static UnumInternalKeyword UNUM_KEYWORDS[] =
 {
     [UNUM_KEYWORD_BLANK] = {.name = "", .func = NULL},
+    [UNUM_KEYWORD_NATIVE] = {.name = "native", .func = Unum_Internal_Keyword_Native},
     [UNUM_KEYWORD_NAMESPACE] = {.name = "namespace", .func = Unum_Internal_Keyword_Namespace},
     [UNUM_KEYWORD_ALIAS] = {.name = "alias", .func = Unum_Internal_Keyword_Alias},
     [UNUM_KEYWORD_FUNCTION] = {.name = "function", .func = Unum_Internal_Keyword_Function},
     [UNUM_KEYWORD_STRUCTURE] = {.name = "structure", .func = Unum_Internal_Keyword_Structure},
+    [UNUM_KEYWORD_VARIABLE] = {.name = "variable", .func = Unum_Internal_Keyword_Variable},
     [UNUM_KEYWORD_PARAMETERS] = {.name = "parameters", .func = Unum_Internal_Keyword_Parameters},
     [UNUM_KEYWORD_RESULT] = {.name = "result", .func = Unum_Internal_Keyword_Result},
     [UNUM_KEYWORD_BODY] = {.name = "body", .func = Unum_Internal_Keyword_Body},
@@ -470,6 +518,7 @@ static UnumInternalKeyword UNUM_KEYWORDS[] =
 static UnumInternalObjType UNUM_PRIMITIVES[] =
 {
     [UNUM_PRIMITIVE_NULL] = { .type = "null", .count = 0, .parts = NULL },
+    [UNUM_PRIMITIVE_ANY] = { .type = "any", .count = 0, .parts = NULL },
     [UNUM_PRIMITIVE_I8] = { .type = "i8", .count = 0, .parts = NULL },
     [UNUM_PRIMITIVE_I16] = { .type = "i16", .count = 0, .parts = NULL },
     [UNUM_PRIMITIVE_I32] = { .type = "i32", .count = 0, .parts = NULL },
@@ -484,25 +533,26 @@ static UnumInternalObjType UNUM_PRIMITIVES[] =
 };
 
 // Treat as if constant
-static const UnumInternalObject UNUM_OBJECT_PRIMITIVES[] =
+static UnumInternalObject UNUM_OBJECT_PRIMITIVES[] =
 {
-    [UNUM_PRIMITIVE_NULL] = { .name = "null", .data = NULL, .type = UNUM_OBJ_BLANK },
-    [UNUM_PRIMITIVE_I8] = { .name = "i8", .data = &UNUM_PRIMITIVES[UNUM_PRIMITIVE_I8], .type = UNUM_OBJ_SINGLE },
-    [UNUM_PRIMITIVE_I16] = { .name = "i16", .data = &UNUM_PRIMITIVES[UNUM_PRIMITIVE_I16], .type = UNUM_OBJ_SINGLE },
-    [UNUM_PRIMITIVE_I32] = { .name = "i32", .data = &UNUM_PRIMITIVES[UNUM_PRIMITIVE_I32], .type = UNUM_OBJ_SINGLE },
-    [UNUM_PRIMITIVE_I64] = { .name = "i64", .data = &UNUM_PRIMITIVES[UNUM_PRIMITIVE_I64], .type = UNUM_OBJ_SINGLE },
-    [UNUM_PRIMITIVE_U8] = { .name = "u8", .data = &UNUM_PRIMITIVES[UNUM_PRIMITIVE_U8], .type = UNUM_OBJ_SINGLE },
-    [UNUM_PRIMITIVE_U16] = { .name = "u16", .data = &UNUM_PRIMITIVES[UNUM_PRIMITIVE_U16], .type = UNUM_OBJ_SINGLE },
-    [UNUM_PRIMITIVE_U32] = { .name = "u32", .data = &UNUM_PRIMITIVES[UNUM_PRIMITIVE_U32], .type = UNUM_OBJ_SINGLE },
-    [UNUM_PRIMITIVE_U64] = { .name = "u64", .data = &UNUM_PRIMITIVES[UNUM_PRIMITIVE_U64], .type = UNUM_OBJ_SINGLE },
-    [UNUM_PRIMITIVE_F32] = { .name = "f32", .data = &UNUM_PRIMITIVES[UNUM_PRIMITIVE_F32], .type = UNUM_OBJ_SINGLE },
-    [UNUM_PRIMITIVE_F64] = { .name = "f64", .data = &UNUM_PRIMITIVES[UNUM_PRIMITIVE_F64], .type = UNUM_OBJ_SINGLE },
-    [UNUM_PRIMITIVE_BOOL] = { .name = "bool", .data = &UNUM_PRIMITIVES[UNUM_PRIMITIVE_BOOL], .type = UNUM_OBJ_SINGLE }
+    [UNUM_PRIMITIVE_NULL] = { .name = "null", .data = &UNUM_PRIMITIVES[UNUM_PRIMITIVE_NULL], .type = UNUM_OBJ_TYPE },
+    [UNUM_PRIMITIVE_ANY] = { .name = "any", .data = &UNUM_PRIMITIVES[UNUM_PRIMITIVE_ANY], .type = UNUM_OBJ_TYPE },
+    [UNUM_PRIMITIVE_I8] = { .name = "i8", .data = &UNUM_PRIMITIVES[UNUM_PRIMITIVE_I8], .type = UNUM_OBJ_TYPE },
+    [UNUM_PRIMITIVE_I16] = { .name = "i16", .data = &UNUM_PRIMITIVES[UNUM_PRIMITIVE_I16], .type = UNUM_OBJ_TYPE },
+    [UNUM_PRIMITIVE_I32] = { .name = "i32", .data = &UNUM_PRIMITIVES[UNUM_PRIMITIVE_I32], .type = UNUM_OBJ_TYPE },
+    [UNUM_PRIMITIVE_I64] = { .name = "i64", .data = &UNUM_PRIMITIVES[UNUM_PRIMITIVE_I64], .type = UNUM_OBJ_TYPE },
+    [UNUM_PRIMITIVE_U8] = { .name = "u8", .data = &UNUM_PRIMITIVES[UNUM_PRIMITIVE_U8], .type = UNUM_OBJ_TYPE },
+    [UNUM_PRIMITIVE_U16] = { .name = "u16", .data = &UNUM_PRIMITIVES[UNUM_PRIMITIVE_U16], .type = UNUM_OBJ_TYPE },
+    [UNUM_PRIMITIVE_U32] = { .name = "u32", .data = &UNUM_PRIMITIVES[UNUM_PRIMITIVE_U32], .type = UNUM_OBJ_TYPE },
+    [UNUM_PRIMITIVE_U64] = { .name = "u64", .data = &UNUM_PRIMITIVES[UNUM_PRIMITIVE_U64], .type = UNUM_OBJ_TYPE },
+    [UNUM_PRIMITIVE_F32] = { .name = "f32", .data = &UNUM_PRIMITIVES[UNUM_PRIMITIVE_F32], .type = UNUM_OBJ_TYPE },
+    [UNUM_PRIMITIVE_F64] = { .name = "f64", .data = &UNUM_PRIMITIVES[UNUM_PRIMITIVE_F64], .type = UNUM_OBJ_TYPE },
+    [UNUM_PRIMITIVE_BOOL] = { .name = "bool", .data = &UNUM_PRIMITIVES[UNUM_PRIMITIVE_BOOL], .type = UNUM_OBJ_TYPE }
 };
 
 // Object defaults
-static const UnumInternalObject UNUM_OBJ_DEF = (UnumInternalObject) {.name = NULL, .data = NULL, .type = UNUM_OBJ_BLANK};
-static const UnumInternalObject UNUM_OBJ_SAFE = (UnumInternalObject) {.name = SAFE, .data = SAFE, .type = UNUM_OBJ_BLANK};
+static UnumInternalObject UNUM_OBJ_DEF = (UnumInternalObject) {.name = NULL, .data = NULL, .type = UNUM_OBJ_BLANK};
+static UnumInternalObject UNUM_OBJ_SAFE = (UnumInternalObject) {.name = SAFE, .data = SAFE, .type = UNUM_OBJ_BLANK};
 
 #ifdef __cplusplus
 }
