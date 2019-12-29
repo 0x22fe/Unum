@@ -58,8 +58,8 @@
     *v = val; \
     UnumInternalObjSingle* res = UNUM_MALLOC(sizeof(UnumInternalObjSingle) * 1); \
     res->data = v; \
-    UnumInternalPair p = Unum_Internal_Execute_Id(c, #ty ); \
-    res->type = (UnumInternalObjType*)(Unum_Internal_Execute_Level(c, p.a)->objects[p.b].data); \
+    UnumInternalPair p = Unum_Internal_Execute_Id(c, #ty); \
+    res->type = *((UnumInternalObjType*)(Unum_Internal_Execute_Level(c, p.a)->objects[p.b].data)); \
     return (UnumInternalObject) {.name = SAFE, .type = UNUM_OBJ_SINGLE, .data = res}
 
 /****************************************************************
@@ -69,7 +69,7 @@
 // Safely assume types match
 
 // Addition function
-static UnumInternalObject unum_lib_math_add(UnumInstance* c, UnumInternalStack* f)
+static UnumInternalObject unum_lib_math_add(UnumInstance* c, UnumInternalObjStack* f)
 {
     f64 a = ULIB_INAT(1, f64, f);
     f64 b = ULIB_INAT(2, f64, f);
@@ -78,7 +78,7 @@ static UnumInternalObject unum_lib_math_add(UnumInstance* c, UnumInternalStack* 
 }
 
 // Subtraction function
-static UnumInternalObject unum_lib_math_sub(UnumInstance* c, UnumInternalStack* f)
+static UnumInternalObject unum_lib_math_sub(UnumInstance* c, UnumInternalObjStack* f)
 {
     f64 a = ULIB_INAT(1, f64, f);
     f64 b = ULIB_INAT(2, f64, f);
@@ -87,7 +87,7 @@ static UnumInternalObject unum_lib_math_sub(UnumInstance* c, UnumInternalStack* 
 }
 
 // Multiplication function
-static UnumInternalObject unum_lib_math_mul(UnumInstance* c, UnumInternalStack* f)
+static UnumInternalObject unum_lib_math_mul(UnumInstance* c, UnumInternalObjStack* f)
 {
     f64 a = ULIB_INAT(1, f64, f);
     f64 b = ULIB_INAT(2, f64, f);
@@ -96,7 +96,7 @@ static UnumInternalObject unum_lib_math_mul(UnumInstance* c, UnumInternalStack* 
 }
 
 // Division function
-static UnumInternalObject unum_lib_math_div(UnumInstance* c, UnumInternalStack* f)
+static UnumInternalObject unum_lib_math_div(UnumInstance* c, UnumInternalObjStack* f)
 {
     f64 a = ULIB_INAT(1, f64, f);
     f64 b = ULIB_INAT(2, f64, f);
@@ -105,7 +105,7 @@ static UnumInternalObject unum_lib_math_div(UnumInstance* c, UnumInternalStack* 
 }
 
 // Logb function
-static UnumInternalObject unum_lib_math_logb(UnumInstance* c, UnumInternalStack* f)
+static UnumInternalObject unum_lib_math_logb(UnumInstance* c, UnumInternalObjStack* f)
 {
     f64 base = ULIB_INAT(1, f64, f);
     f64 num = ULIB_INAT(2, f64, f);
@@ -114,7 +114,7 @@ static UnumInternalObject unum_lib_math_logb(UnumInstance* c, UnumInternalStack*
 }
 
 // Pow function
-static UnumInternalObject unum_lib_math_pow(UnumInstance* c, UnumInternalStack* f)
+static UnumInternalObject unum_lib_math_pow(UnumInstance* c, UnumInternalObjStack* f)
 {
     f64 base = ULIB_INAT(1, f64, f);
     f64 power = ULIB_INAT(2, f64, f);
@@ -123,7 +123,7 @@ static UnumInternalObject unum_lib_math_pow(UnumInstance* c, UnumInternalStack* 
 }
 
 // Sin function
-static UnumInternalObject unum_lib_math_sin(UnumInstance* c, UnumInternalStack* f)
+static UnumInternalObject unum_lib_math_sin(UnumInstance* c, UnumInternalObjStack* f)
 {
     f64 i = ULIB_IN1(f64, f);
     f64 o = sin(i);
@@ -131,7 +131,7 @@ static UnumInternalObject unum_lib_math_sin(UnumInstance* c, UnumInternalStack* 
 }
 
 // Cos function
-static UnumInternalObject unum_lib_math_cos(UnumInstance* c, UnumInternalStack* f)
+static UnumInternalObject unum_lib_math_cos(UnumInstance* c, UnumInternalObjStack* f)
 {
     f64 i = ULIB_IN1(f64, f);
     f64 o = cos(i);
@@ -139,7 +139,7 @@ static UnumInternalObject unum_lib_math_cos(UnumInstance* c, UnumInternalStack* 
 }
 
 // Tan function
-static UnumInternalObject unum_lib_math_tan(UnumInstance* c, UnumInternalStack* f)
+static UnumInternalObject unum_lib_math_tan(UnumInstance* c, UnumInternalObjStack* f)
 {
     f64 i = ULIB_IN1(f64, f);
     f64 o = tan(i);
@@ -147,7 +147,7 @@ static UnumInternalObject unum_lib_math_tan(UnumInstance* c, UnumInternalStack* 
 }
 
 // Sec function
-static UnumInternalObject unum_lib_math_sec(UnumInstance* c, UnumInternalStack* f)
+static UnumInternalObject unum_lib_math_sec(UnumInstance* c, UnumInternalObjStack* f)
 {
     f64 i = ULIB_IN1(f64, f);
     f64 o = 1.0 / cos(i);
@@ -155,7 +155,7 @@ static UnumInternalObject unum_lib_math_sec(UnumInstance* c, UnumInternalStack* 
 }
 
 // Csc function
-static UnumInternalObject unum_lib_math_csc(UnumInstance* c, UnumInternalStack* f)
+static UnumInternalObject unum_lib_math_csc(UnumInstance* c, UnumInternalObjStack* f)
 {
     f64 i = ULIB_IN1(f64, f);
     f64 o = 1.0 / sin(i);
@@ -163,7 +163,7 @@ static UnumInternalObject unum_lib_math_csc(UnumInstance* c, UnumInternalStack* 
 }
 
 // Cot function
-static UnumInternalObject unum_lib_math_cot(UnumInstance* c, UnumInternalStack* f)
+static UnumInternalObject unum_lib_math_cot(UnumInstance* c, UnumInternalObjStack* f)
 {
     f64 i = ULIB_IN1(f64, f);
     f64 o = 1.0 / tan(i);
@@ -171,7 +171,7 @@ static UnumInternalObject unum_lib_math_cot(UnumInstance* c, UnumInternalStack* 
 }
 
 // Inverse sin function
-static UnumInternalObject unum_lib_math_asin(UnumInstance* c, UnumInternalStack* f)
+static UnumInternalObject unum_lib_math_asin(UnumInstance* c, UnumInternalObjStack* f)
 {
     f64 i = ULIB_IN1(f64, f);
     f64 o = asin(i);
@@ -179,7 +179,7 @@ static UnumInternalObject unum_lib_math_asin(UnumInstance* c, UnumInternalStack*
 }
 
 // Inverse cos function
-static UnumInternalObject unum_lib_math_acos(UnumInstance* c, UnumInternalStack* f)
+static UnumInternalObject unum_lib_math_acos(UnumInstance* c, UnumInternalObjStack* f)
 {
     f64 i = ULIB_IN1(f64, f);
     f64 o = acos(i);
@@ -187,7 +187,7 @@ static UnumInternalObject unum_lib_math_acos(UnumInstance* c, UnumInternalStack*
 }
 
 // Inverse tan function
-static UnumInternalObject unum_lib_math_atan(UnumInstance* c, UnumInternalStack* f)
+static UnumInternalObject unum_lib_math_atan(UnumInstance* c, UnumInternalObjStack* f)
 {
     f64 i = ULIB_IN1(f64, f);
     f64 o = atan(i);
@@ -195,7 +195,7 @@ static UnumInternalObject unum_lib_math_atan(UnumInstance* c, UnumInternalStack*
 }
 
 // Inverse sec function
-static UnumInternalObject unum_lib_math_asec(UnumInstance* c, UnumInternalStack* f)
+static UnumInternalObject unum_lib_math_asec(UnumInstance* c, UnumInternalObjStack* f)
 {
     f64 i = ULIB_IN1(f64, f);
     f64 o = acos(1.0 / i);
@@ -203,7 +203,7 @@ static UnumInternalObject unum_lib_math_asec(UnumInstance* c, UnumInternalStack*
 }
 
 // Inverse csc function
-static UnumInternalObject unum_lib_math_acsc(UnumInstance* c, UnumInternalStack* f)
+static UnumInternalObject unum_lib_math_acsc(UnumInstance* c, UnumInternalObjStack* f)
 {
     f64 i = ULIB_IN1(f64, f);
     f64 o = asin(1.0 / i);
@@ -211,7 +211,7 @@ static UnumInternalObject unum_lib_math_acsc(UnumInstance* c, UnumInternalStack*
 }
 
 // Inverse cot function
-static UnumInternalObject unum_lib_math_acot(UnumInstance* c, UnumInternalStack* f)
+static UnumInternalObject unum_lib_math_acot(UnumInstance* c, UnumInternalObjStack* f)
 {
     f64 i = ULIB_IN1(f64, f);
     f64 o = UNUM_LIBRARY_MATH_PI_2 - atan(i);
@@ -219,7 +219,7 @@ static UnumInternalObject unum_lib_math_acot(UnumInstance* c, UnumInternalStack*
 }
 
 // Inverse tan (2) function
-static UnumInternalObject unum_lib_math_atan2(UnumInstance* c, UnumInternalStack* f)
+static UnumInternalObject unum_lib_math_atan2(UnumInstance* c, UnumInternalObjStack* f)
 {
     f64 y = ULIB_INAT(1, f64, f);
     f64 x = ULIB_INAT(2, f64, f);
@@ -228,7 +228,7 @@ static UnumInternalObject unum_lib_math_atan2(UnumInstance* c, UnumInternalStack
 }
 
 // Deg function
-static UnumInternalObject unum_lib_math_deg(UnumInstance* c, UnumInternalStack* f)
+static UnumInternalObject unum_lib_math_deg(UnumInstance* c, UnumInternalObjStack* f)
 {
     f64 i = ULIB_IN1(f64, f);
     f64 o = i * UNUM_LIBRARY_MATH_DEG;
@@ -236,7 +236,7 @@ static UnumInternalObject unum_lib_math_deg(UnumInstance* c, UnumInternalStack* 
 }
 
 // Rad function
-static UnumInternalObject unum_lib_math_rad(UnumInstance* c, UnumInternalStack* f)
+static UnumInternalObject unum_lib_math_rad(UnumInstance* c, UnumInternalObjStack* f)
 {
     f64 i = ULIB_IN1(f64, f);
     f64 o = i * UNUM_LIBRARY_MATH_RAD;
@@ -244,7 +244,7 @@ static UnumInternalObject unum_lib_math_rad(UnumInstance* c, UnumInternalStack* 
 }
 
 // Floor function
-static UnumInternalObject unum_lib_math_floor(UnumInstance* c, UnumInternalStack* f)
+static UnumInternalObject unum_lib_math_floor(UnumInstance* c, UnumInternalObjStack* f)
 {
     f64 i = ULIB_IN1(f64, f);
     f64 o = floor(i);
@@ -252,7 +252,7 @@ static UnumInternalObject unum_lib_math_floor(UnumInstance* c, UnumInternalStack
 }
 
 // Ceil function
-static UnumInternalObject unum_lib_math_ceil(UnumInstance* c, UnumInternalStack* f)
+static UnumInternalObject unum_lib_math_ceil(UnumInstance* c, UnumInternalObjStack* f)
 {
     f64 i = ULIB_IN1(f64, f);
     f64 o = ceil(i);
@@ -260,7 +260,7 @@ static UnumInternalObject unum_lib_math_ceil(UnumInstance* c, UnumInternalStack*
 }
 
 // Round function
-static UnumInternalObject unum_lib_math_round(UnumInstance* c, UnumInternalStack* f)
+static UnumInternalObject unum_lib_math_round(UnumInstance* c, UnumInternalObjStack* f)
 {
     f64 i = ULIB_IN1(f64, f);
     f64 o = round(i);
@@ -268,7 +268,7 @@ static UnumInternalObject unum_lib_math_round(UnumInstance* c, UnumInternalStack
 }
 
 // Abs function
-static UnumInternalObject unum_lib_math_abs(UnumInstance* c, UnumInternalStack* f)
+static UnumInternalObject unum_lib_math_abs(UnumInstance* c, UnumInternalObjStack* f)
 {
     f64 i = ULIB_IN1(f64, f);
     f64 o = fabs(i);

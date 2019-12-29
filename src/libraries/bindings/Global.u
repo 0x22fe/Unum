@@ -23,6 +23,9 @@
   SOFTWARE.
 ##
 
+@constant $FALSE, bool, 0;
+@constant $TRUE, bool, 1;
+
 @namespace $global,
 (
     @function $version ->

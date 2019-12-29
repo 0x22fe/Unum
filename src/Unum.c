@@ -409,9 +409,9 @@ UNUM_DEF UnumInternalPairList Unum_Internal_Parse_Separate(UnumInternalTokens t,
     // Determines if token pair needs to be skipped
     bool skip = UNUM_FALSE;
     if(allow_skip && (
-                //strcmp(t.tokens[p.a].value, "{") == 0 ||
-                strcmp(t.tokens[p.a].value, "(") == 0 // ||
-                //strcmp(t.tokens[p.a].value, "[") == 0)
+                strcmp(t.tokens[p.a].value, "{") == 0 ||
+                strcmp(t.tokens[p.a].value, "(") == 0 ||
+                strcmp(t.tokens[p.a].value, "[") == 0
                 ))
     {
         UnumInternalPair match = Unum_Internal_Parse_Match(t, p.a);
@@ -517,24 +517,42 @@ UNUM_DEF void Unum_Debug_Sequence(UnumInternalTokens s, UnumInternalPair p)
 }
 
 // Todo - Finish
-UNUM_DEF void Unum_Debug_Object(UnumInternalTokens s, UnumInternalObject p)
+UNUM_DEF void Unum_Debug_Object(UnumInternalTokens s, UnumInternalObject p, size offset)
 {
-    unum_log("Object \"%s\" (type ID# %u):", p.name, (size)p.type);
+    for(size o = 0; o < offset; o++) printf("\t");
+    printf("\nObject \"%s\", value %p, type %u: ", Unum_Internal_Valid(p.name) ? p.name : "NULL/SAFE", p.data, (size)p.type);
 #ifdef UNUM_DEBUG
-    printf("\t\t");
     if(p.type == UNUM_OBJ_SYMBOL)
     {
         UnumInternalObjSymbol n = *((UnumInternalObjSymbol*)p.data);
-        printf("Symbol - %u Name(s)\n\t\t\t", n.count);
+        for(size o = 0; o < offset; o++) printf("\t");
+        printf("Symbol - %u Name(s)\n", n.count);
         for(size i = 0; i < n.count; i++)
         {
-            if(i != n.count - 1) printf("%s.", n.names[i]);
-            else printf("%s", n.names[i]);
+            for(size o = 0; o < offset; o++) printf("\t");
+            if(i != n.count - 1) printf("%s.", Unum_Internal_Valid(n.names[i]) ? n.names[i] : "NULL/SAFE");
+            else printf("%s\n", n.names[i]);
         }
+    } else if(p.type == UNUM_OBJ_STACK) {
+        UnumInternalObjStack n = *((UnumInternalObjStack*)p.data);
+        for(size o = 0; o < offset; o++) printf("\t");
+        printf("Stack - %u Object(s)\n", n.count);
+        for(size i = 0; i < n.count; i++)
+        {
+            for(size o = 0; o < offset; o++) printf("\t");
+            printf("Index %u: ", i);
+            Unum_Debug_Object(s, n.objects[i], offset + 1);
+        }
+    } else if(p.type == UNUM_OBJ_BLANK) {
+        for(size o = 0; o < offset; o++) printf("\t");
+        printf("Blank - Null\n");
+    } else {
+        for(size o = 0; o < offset; o++) printf("\t");
+        printf("Unknown\n");
     }
-    printf("\n");
 #endif
-    unum_log("End Object");
+    for(size o = 0; o < offset; o++) printf("\t");
+    printf("End Object\n");
 }
 
 /****************************************************************
@@ -644,11 +662,31 @@ UNUM_DEF bool Unum_Internal_Execute_Same_Type(UnumInternalObject a, UnumInternal
     }
 }
 
+// Resolves object name in stack
+UNUM_DEF size Unum_Internal_Stack_Id(UnumInternalObjStack* c, str name)
+{
+    if(!Unum_Internal_Valid(name))
+        return 0;
+
+    // Todo - Optimize by using a hash table
+    for(size i = 1; i < c->count; i++)
+    {
+        if(Unum_Internal_Valid(c->objects[i].name))
+        {
+            if(strcmp(name, c->objects[i].name) == 0)
+            {
+                return i;
+            }
+        }
+    }
+
+    return 0;
+}
+
 // Resolves object name to stack level and ID
 UNUM_DEF UnumInternalPair Unum_Internal_Execute_Id(UnumInstance* c, str name)
 {
     // Lookup object name in all stack levels
-    // Todo - Optimize by using a hash table
 
     UnumInternalPair res;
     res.a = 0; // Stack level
@@ -657,27 +695,43 @@ UNUM_DEF UnumInternalPair Unum_Internal_Execute_Id(UnumInstance* c, str name)
     if(!Unum_Internal_Valid(name))
         return res;
 
-    UnumInternalStack* last = &c->stack;
-    while(last->objects != NULL)
+    // Start from highest level of stack
+    for(isize i = Unum_Internal_Execute_Stack_Level(c); i >= 0; i--)
     {
-        for(size i = 1; i < last->count; i++)
-        {
-            if(Unum_Internal_Valid(last->objects[i].name))
-            {
-                if(strcmp(name, last->objects[i].name) == 0)
-                {
-                    res.b = i;
-                    break;
-                }
-            }
-        }
+        // Search for match in current stack
+        res.b = Unum_Internal_Stack_Id(Unum_Internal_Execute_Level(c, i), name);
 
+        // Set stack level
+        res.a = i;
+
+        // Handle match
+        if(res.b != 0)
+            break;
+    }
+
+    /*
+    UnumInternalObjStack* last = Unum_Internal_Execute_Stack_Level(c);
+    while(Unum_Internal_Valid(last))
+    {
+        // Search for match in current stack
+        res.b = Unum_Internal_Stack_Id(last, name);
+
+        // Handle match
         if(res.b != 0)
             break;
 
+        // Increment stack level
         res.a++;
-        last = (UnumInternalStack*)(&last->objects[0]);
+
+        // Element at location 0 should be a stack object
+        if(last->objects[0].type == UNUM_OBJ_STACK)
+            last = (UnumInternalObjStack*)(last->objects[0].data);
+        else
+            break;
+        // Next stack
+        last = (UnumInternalObjStack*)(&last->objects[0]);
     }
+        */
 
     return res;
 }
@@ -686,38 +740,38 @@ UNUM_DEF UnumInternalPair Unum_Internal_Execute_Id(UnumInstance* c, str name)
 UNUM_DEF size Unum_Internal_Execute_Stack_Level(UnumInstance* c)
 {
     size level = 0;
-    UnumInternalStack* last = &c->stack;
+    UnumInternalObjStack* last = &c->stack;
     while(last->objects != NULL)
     {
-        last = (UnumInternalStack*)(&last->objects[0]);
+        last = (UnumInternalObjStack*)(&last->objects[0]);
         level++;
     }
     return level;
 }
 
 // Returns pointer to highest level stack
-UNUM_DEF UnumInternalStack* Unum_Internal_Execute_Stack(UnumInstance* c)
+UNUM_DEF UnumInternalObjStack* Unum_Internal_Execute_Stack(UnumInstance* c)
 {
-    UnumInternalStack* last = &c->stack;
+    UnumInternalObjStack* last = &c->stack;
     while(last->objects != NULL && !Unum_Internal_Execute_Obj_Null(last->objects[0]))
-        last = (UnumInternalStack*)(&last->objects[0]);
+        last = (UnumInternalObjStack*)(&last->objects[0]);
     return last;
 }
 
 // Returns pointer to given level stack
-UNUM_DEF UnumInternalStack* Unum_Internal_Execute_Level(UnumInstance* c, size lvl)
+UNUM_DEF UnumInternalObjStack* Unum_Internal_Execute_Level(UnumInstance* c, size lvl)
 {
     size i = 0;
-    UnumInternalStack* last = &c->stack;
+    UnumInternalObjStack* last = &c->stack;
     while(last->objects != NULL && i < lvl)
     {
         i++;
-        last = (UnumInternalStack*)(&last->objects[0]);
+        last = (UnumInternalObjStack*)(&last->objects[0]);
     }
     return last;
 }
 
-UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Function(UnumInstance* c, UnumInternalStack* params)
+UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Function(UnumInstance* c, UnumInternalObjStack* params)
 {
     if(params->count == 0)
     {
@@ -763,7 +817,7 @@ UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Function(UnumInstance* c, Unum
     return o;
 }
 
-UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Parameters(UnumInstance* c, UnumInternalStack* params)
+UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Parameters(UnumInstance* c, UnumInternalObjStack* params)
 {
     // Remember, 0 is reserved in the stack
     if(params->count < 2 || params->count > 3)
@@ -791,7 +845,7 @@ UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Parameters(UnumInstance* c, Un
     // Function with argument(s)
     if(params->objects[2].type != UNUM_OBJ_SET)
     {
-        Unum_Debug_Object(c->program, params->objects[2]);
+        Unum_Debug_Object(c->program, params->objects[2], 0);
         Unum_Internal_Exception(c, "@parameters expected a set as a second argument", UNUM_CODE_RUNTIME_ERROR, 0);
         return UNUM_OBJ_DEF;
     }
@@ -848,7 +902,7 @@ UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Parameters(UnumInstance* c, Un
     return params->objects[1];
 }
 
-UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Result(UnumInstance* c, UnumInternalStack* params)
+UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Result(UnumInstance* c, UnumInternalObjStack* params)
 {
     // Remember, 0 is reserved in the stack
     if(params->objects[1].type != UNUM_OBJ_FUNCTION)
@@ -881,13 +935,12 @@ UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Result(UnumInstance* c, UnumIn
         return params->objects[1];
     } else {
         // Too many return values, error
-
         Unum_Internal_Exception(c, "@result has too many return values (only 1 is allowed)", UNUM_CODE_SYNTAX_ERROR, 0);
         return UNUM_OBJ_DEF;
     }
 }
 
-UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Namespace(UnumInstance* c, UnumInternalStack* params)
+UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Namespace(UnumInstance* c, UnumInternalObjStack* params)
 {
     // Namespace is a special keyword
     // It expects a name and expression range, not the result of the expression
@@ -929,11 +982,6 @@ UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Namespace(UnumInstance* c, Unu
         UNUM_FREE(ns);
         // Error occurred
         return UNUM_OBJ_DEF;
-    } else {
-        // Add object to stack
-        ns->stack.count++;
-        ns->stack.objects = UNUM_REALLOC(ns->stack.objects, sizeof(UnumInternalObject) * ns->stack.count);
-        ns->stack.objects[ns->stack.count - 1] = o;
     }
 
     // Create object
@@ -948,33 +996,33 @@ UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Namespace(UnumInstance* c, Unu
     return obj;
 }
 
-UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Alias(UnumInstance* c, UnumInternalStack* params)
+UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Alias(UnumInstance* c, UnumInternalObjStack* params)
 {
     return UNUM_OBJ_DEF;
 }
 
-UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Structure(UnumInstance* c, UnumInternalStack* params)
+UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Structure(UnumInstance* c, UnumInternalObjStack* params)
 {
     return UNUM_OBJ_DEF;
 }
 
 // Todo - Finish
-UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Variable(UnumInstance* c, UnumInternalStack* params)
+UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Variable(UnumInstance* c, UnumInternalObjStack* params)
 {
     // Remember, 0 is reserved in the stack
     if(params->count < 3)
     {
-        Unum_Internal_Exception(c, "@var needs to be called with at least a variable name and type (value is optional)", UNUM_CODE_SYNTAX_ERROR, 0);
+        Unum_Internal_Exception(c, "@variable needs to be called with at least a variable name and type (value is optional)", UNUM_CODE_SYNTAX_ERROR, 0);
         return UNUM_OBJ_DEF;
     }
     if(params->objects[1].type != UNUM_OBJ_SYMBOL)
     {
-        Unum_Internal_Exception(c, "@var expected symbol (variable name)", UNUM_CODE_SYNTAX_ERROR, 0);
+        Unum_Internal_Exception(c, "@variable expected symbol (variable name)", UNUM_CODE_SYNTAX_ERROR, 0);
         return UNUM_OBJ_DEF;
     }
     if(params->objects[2].type != UNUM_OBJ_TYPE)
     {
-        Unum_Internal_Exception(c, "@var expected type", UNUM_CODE_SYNTAX_ERROR, 0);
+        Unum_Internal_Exception(c, "@variable expected type", UNUM_CODE_SYNTAX_ERROR, 0);
         return UNUM_OBJ_DEF;
     }
 
@@ -1017,12 +1065,65 @@ UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Variable(UnumInstance* c, Unum
         return o;
     } else {
         // Too many input values, error
-        Unum_Internal_Exception(c, "@var has too many values (only 1 is allowed)", UNUM_CODE_SYNTAX_ERROR, 0);
+        Unum_Internal_Exception(c, "@variable has too many values (only 1 is allowed)", UNUM_CODE_SYNTAX_ERROR, 0);
         return UNUM_OBJ_DEF;
     }
 }
 
-UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Body(UnumInstance* c, UnumInternalStack* params)
+// Todo - Finish
+UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Constant(UnumInstance* c, UnumInternalObjStack* params)
+{
+    // Remember, 0 is reserved in the stack
+    if(params->count != 4)
+    {
+        Unum_Internal_Exception(c, "@constant needs to be called with a variable name, type, and value", UNUM_CODE_SYNTAX_ERROR, 0);
+        return UNUM_OBJ_DEF;
+    }
+    if(params->objects[1].type != UNUM_OBJ_SYMBOL)
+    {
+        Unum_Internal_Exception(c, "@constant expected symbol (variable name)", UNUM_CODE_SYNTAX_ERROR, 0);
+        return UNUM_OBJ_DEF;
+    }
+    if(params->objects[2].type != UNUM_OBJ_TYPE)
+    {
+        Unum_Internal_Exception(c, "@constant expected type", UNUM_CODE_SYNTAX_ERROR, 0);
+        return UNUM_OBJ_DEF;
+    }
+
+    // Constant declaration and definition
+    // Todo - Verify object matches type given at objects[2]
+
+    // Maybe Todo - Allow for nested variable declarations
+    UnumInternalObject o;
+    o.name = Unum_Internal_Utility_Strdup(((UnumInternalObjSymbol*)params->objects[1].data)->names[0]);
+
+    // Todo - Get type from objects[2]
+    o.type = UNUM_OBJ_SINGLE;
+
+    // For now, only support single variable types
+
+    // Copy object to variable
+    UnumInternalObjSingle* os = UNUM_MALLOC(sizeof(UnumInternalObjSingle) * 1);
+    *os = *((UnumInternalObjSingle*)params->objects[3].data);
+
+    // Modify type to be constant
+    UnumInternalObjType ot;
+    ot.type = "constant";
+    ot.count = 1;
+    ot.parts = UNUM_MALLOC(sizeof(UnumInternalObjType) * 1);
+    ot.parts[0] = os->type;
+
+    // Update object type
+    os->type = ot;
+
+    // Set object data
+    o.data = os;
+
+    // Return object
+    return o;
+}
+
+UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Body(UnumInstance* c, UnumInternalObjStack* params)
 {
     // Body is a special keyword
     // It expects an expression
@@ -1050,10 +1151,10 @@ UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Body(UnumInstance* c, UnumInte
     f->body = *((UnumInternalObjExpression*)params->objects[2].data);
 
     // Return function object
-    return params->objects[2];
+    return params->objects[1];
 }
 
-UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Return(UnumInstance* c, UnumInternalStack* params)
+UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Return(UnumInstance* c, UnumInternalObjStack* params)
 {
     // Return is a special keyword
     // It affects the program execution order
@@ -1072,7 +1173,7 @@ UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Return(UnumInstance* c, UnumIn
         return params->objects[1];
 }
 
-UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Native(UnumInstance* c, UnumInternalStack* params)
+UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Native(UnumInstance* c, UnumInternalObjStack* params)
 {
     // Native is a special keyword
     // It calls native C code
@@ -1110,7 +1211,7 @@ UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Native(UnumInstance* c, UnumIn
     }
 
     // Create stack with function (element 1) removed
-    UnumInternalStack ns;
+    UnumInternalObjStack ns;
     ns.count = params->count - 1;
     ns.objects = UNUM_MALLOC(sizeof(UnumInternalObject) * ns.count);
     ns.objects[0] = UNUM_OBJ_DEF;
@@ -1128,7 +1229,8 @@ UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Native(UnumInstance* c, UnumIn
  ****************************************************************/
 
 // Todo - Finish
-UNUM_DEF UnumInternalObject Unum_Internal_Execute_Data(UnumInstance* c, UnumInternalStack* ns, UnumInternalPair range)
+// Note that this function may not necessarily access values only within the given range
+UNUM_DEF UnumInternalObject Unum_Internal_Execute_Data(UnumInstance* c, UnumInternalObjStack* ns, UnumInternalPair range)
 {
     // Get current location
     size current = range.a;
@@ -1141,8 +1243,18 @@ UNUM_DEF UnumInternalObject Unum_Internal_Execute_Data(UnumInstance* c, UnumInte
     // Handle expressions
     if(strcmp(active.value, "(") == 0)
     {
+        // Create new stack
+        UnumInternalObjStack* st = UNUM_MALLOC(sizeof(UnumInternalObjStack) * 1);
+        st->count = 1;
+        st->objects = UNUM_MALLOC(sizeof(UnumInternalObject) * 1);
+        st->objects[0] = UNUM_OBJ_DEF;
+
+        ns->objects[0].name = SAFE;
+        ns->objects[0].type = UNUM_OBJ_STACK;
+        ns->objects[0].data = st;
+
         // Recursively execute expressions
-        return Unum_Internal_Execute_Expressions(c, NULL, range);
+        return Unum_Internal_Execute_Expressions(c, st, (UnumInternalPair){.a = range.a + 1, .b = range.b - 1});
 
         // Handle sets
     } else if(strcmp(active.value, "{") == 0)
@@ -1156,6 +1268,7 @@ UNUM_DEF UnumInternalObject Unum_Internal_Execute_Data(UnumInstance* c, UnumInte
             set_range = range;
         else
             set_range = (UnumInternalPair) {.a = range.a + 1, range.b - 1};
+
         UnumInternalPairList set_data = Unum_Internal_Parse_Separate(c->program, set_range, ",", UNUM_TRUE);
         unum_log("Set element(s):");
         Unum_Debug_Pair(c->program, set_data);
@@ -1261,7 +1374,7 @@ UNUM_DEF UnumInternalObject Unum_Internal_Execute_Data(UnumInstance* c, UnumInte
         {
             // Set defaults
             arr->data = SAFE;
-            arr->type = SAFE;
+            arr->type = UNUM_PRIMITIVES[UNUM_PRIMITIVE_NULL];
 
             // Create object
             UnumInternalObject obj;
@@ -1288,7 +1401,7 @@ UNUM_DEF UnumInternalObject Unum_Internal_Execute_Data(UnumInstance* c, UnumInte
         }
 
         // Todo - Accurately set this
-        arr->type = SAFE;
+        arr->type = UNUM_PRIMITIVES[UNUM_PRIMITIVE_NULL];
 
         // Set array pointer
         arr->data = UNUM_MALLOC(sizeof(UnumInternalObject) * arr_data.num);
@@ -1351,7 +1464,7 @@ UNUM_DEF UnumInternalObject Unum_Internal_Execute_Data(UnumInstance* c, UnumInte
                 size last = range.a + 1;
 
                 // Seek to end of member access chain
-                while(last < range.b)
+                while(last < c->program.count)
                 {
                     // Check for operator/symbol
                     if(expect_symbol)
@@ -1377,7 +1490,8 @@ UNUM_DEF UnumInternalObject Unum_Internal_Execute_Data(UnumInstance* c, UnumInte
                     } else {
                         if(strcmp(c->program.tokens[last].value, ".") != 0)
                         {
-                            last = range.a;
+                            // End of chain
+                            // last = range.a;
                             break;
                         }
                     }
@@ -1416,7 +1530,7 @@ UNUM_DEF UnumInternalObject Unum_Internal_Execute_Data(UnumInstance* c, UnumInte
                 size last = range.a + 1;
 
                 // Seek to end of member access chain
-                while(last < range.b)
+                while(last < c->program.count)
                 {
                     // Check for operator/symbol
                     if(expect_symbol)
@@ -1461,6 +1575,7 @@ UNUM_DEF UnumInternalObject Unum_Internal_Execute_Data(UnumInstance* c, UnumInte
                         } else if(obj.type == UNUM_OBJ_ARRAY) {
                             // Idea - Allow for access in the future via member operator
                             // For now return an error
+                            Unum_Internal_Exception(c, "Internal - not implemented (array)", UNUM_CODE_SYNTAX_ERROR, range.a);
                             last = range.a;
                             break;
                         } else if(obj.type == UNUM_OBJ_NAMESPACE) {
@@ -1484,24 +1599,27 @@ UNUM_DEF UnumInternalObject Unum_Internal_Execute_Data(UnumInstance* c, UnumInte
                             // Member name not found
                             if(!found)
                             {
+                                Unum_Internal_Exception(c, "Member not found (namespace)", UNUM_CODE_RUNTIME_ERROR, range.a);
                                 last = range.a;
                                 break;
                             }
                         } else if(obj.type == UNUM_OBJ_STRUCTURE) {
                             // Todo - Implement
                             // For now return an error
+                            Unum_Internal_Exception(c, "Internal - not implemented (structure)", UNUM_CODE_SYNTAX_ERROR, range.a);
                             last = range.a;
                             break;
                         } else {
                             // Can't use member access operator here
+                            Unum_Internal_Exception(c, "Cannot use member access operator on object", UNUM_CODE_SYNTAX_ERROR, range.a);
                             last = range.a;
                             break;
                         }
-
                     } else {
                         if(strcmp(c->program.tokens[last].value, ".") != 0)
                         {
-                            last = range.a;
+                            // End of chain
+                            // last = range.a;
                             break;
                         }
                     }
@@ -1536,7 +1654,7 @@ UNUM_DEF UnumInternalObject Unum_Internal_Execute_Data(UnumInstance* c, UnumInte
             size last = range.a + 1;
 
             // Seek to end of member access chain
-            while(last < range.b)
+            while(last < c->program.count)
             {
                 // Check for operator/symbol
                 if(expect_symbol)
@@ -1562,7 +1680,8 @@ UNUM_DEF UnumInternalObject Unum_Internal_Execute_Data(UnumInstance* c, UnumInte
                 } else {
                     if(strcmp(c->program.tokens[last].value, ".") != 0)
                     {
-                        last = range.a;
+                        // End of chain
+                        // last = range.a;
                         break;
                     }
                 }
@@ -1599,7 +1718,7 @@ UNUM_DEF UnumInternalObject Unum_Internal_Execute_Data(UnumInstance* c, UnumInte
         // Todo - Process char to handle escape sequences
         UnumInternalObjSingle* val = UNUM_MALLOC(sizeof(UnumInternalObjSingle) * 1);
         val->data = UNUM_MALLOC(sizeof(u8) * 1);
-        val->type = &UNUM_PRIMITIVES[UNUM_PRIMITIVE_U8];
+        val->type = UNUM_PRIMITIVES[UNUM_PRIMITIVE_U8];
         ((u8*)val->data)[0] = (u8)(active.value[1]); // Copy first character inside quotes, ignore rest (for now)
 
         // Create object
@@ -1617,7 +1736,7 @@ UNUM_DEF UnumInternalObject Unum_Internal_Execute_Data(UnumInstance* c, UnumInte
         // Assumes string is ASCII (unsigned 8 bit characters)
         UnumInternalObjArray* arr = UNUM_MALLOC(sizeof(UnumInternalObjArray) * 1);
         arr->count = (size)strlen(active.value);
-        arr->type = &UNUM_PRIMITIVES[UNUM_PRIMITIVE_U8];
+        arr->type = UNUM_PRIMITIVES[UNUM_PRIMITIVE_U8];
 
         // Create data object
         UnumInternalObject o;
@@ -1654,7 +1773,7 @@ UNUM_DEF UnumInternalObject Unum_Internal_Execute_Data(UnumInstance* c, UnumInte
             f64* v = UNUM_MALLOC(sizeof(f64) * 1);
             *v = strtod(active.value, NULL);
             dat->data = v;
-            dat->type = &UNUM_PRIMITIVES[UNUM_PRIMITIVE_F64];
+            dat->type = UNUM_PRIMITIVES[UNUM_PRIMITIVE_F64];
         } else {
             // Check if negative
             if(strchr(active.value, '-') != NULL)
@@ -1663,13 +1782,13 @@ UNUM_DEF UnumInternalObject Unum_Internal_Execute_Data(UnumInstance* c, UnumInte
                 i64* v = UNUM_MALLOC(sizeof(i64) * 1);
                 *v = strtol(active.value, NULL, 10);
                 dat->data = v;
-                dat->type = &UNUM_PRIMITIVES[UNUM_PRIMITIVE_I64];
+                dat->type = UNUM_PRIMITIVES[UNUM_PRIMITIVE_I64];
             } else {
                 // Use default type u64
                 u64* v = UNUM_MALLOC(sizeof(u64) * 1);
                 *v = strtoul(active.value, NULL, 10);
                 dat->data = v;
-                dat->type = &UNUM_PRIMITIVES[UNUM_PRIMITIVE_U64];
+                dat->type = UNUM_PRIMITIVES[UNUM_PRIMITIVE_U64];
             }
         }
 
@@ -1693,7 +1812,7 @@ UNUM_DEF UnumInternalObject Unum_Internal_Execute_Data(UnumInstance* c, UnumInte
 
 // Todo - Finish
 // Return location of error on problem, otherwise return 0
-UNUM_DEF UnumInternalObject Unum_Internal_Execute_Expressions(UnumInstance* c, UnumInternalStack* base, UnumInternalPair p)
+UNUM_DEF UnumInternalObject Unum_Internal_Execute_Expressions(UnumInstance* c, UnumInternalObjStack* base, UnumInternalPair p)
 {
     // unum_log("Code:");
     // unum_log("\"%s\"", c->program.code);
@@ -1717,7 +1836,7 @@ UNUM_DEF UnumInternalObject Unum_Internal_Execute_Expressions(UnumInstance* c, U
     }
 
     // Get highest stack level
-    UnumInternalStack* last_ns;
+    UnumInternalObjStack* last_ns;
     if(base == NULL)
     {
         last_ns = Unum_Internal_Execute_Stack(c);
@@ -1790,7 +1909,7 @@ UNUM_DEF UnumInternalObject Unum_Internal_Execute_Expressions(UnumInstance* c, U
                         }
                         expect_symbol = !expect_symbol;
                     }
-                    //arg_range.a -= 1;
+                    // arg_range.a -= 1;
                 } else {
                     unum_log("%s", c->program.tokens[arg_range.a].value);
                     Unum_Internal_Exception(c, "Expected function or keyword call", UNUM_CODE_SYNTAX_ERROR, 0);
@@ -1822,7 +1941,7 @@ UNUM_DEF UnumInternalObject Unum_Internal_Execute_Expressions(UnumInstance* c, U
             }
 
             // Create stack for argument values
-            UnumInternalStack* ns = UNUM_MALLOC(sizeof(UnumInternalStack) * 1);
+            UnumInternalObjStack* ns = UNUM_MALLOC(sizeof(UnumInternalObjStack) * 1);
 
             // Add latest object to current stack if pass operator was used
             // Remember, location 0 is reserved, so add 1 to the argument stack anyways
@@ -1832,6 +1951,10 @@ UNUM_DEF UnumInternalObject Unum_Internal_Execute_Expressions(UnumInstance* c, U
                 ns->objects = UNUM_MALLOC(sizeof(UnumInternalObject) * (ns->count));
 
                 ns->objects[1] = last_ns->objects[last_ns->count - 1];
+
+                // Remove latest object from lower stack
+                last_ns->objects[last_ns->count - 1] = UNUM_OBJ_DEF;
+                last_ns->count--;
             } else {
                 ns->count = args.num + 1;
                 ns->objects = UNUM_MALLOC(sizeof(UnumInternalObject) * (ns->count));
@@ -1841,6 +1964,7 @@ UNUM_DEF UnumInternalObject Unum_Internal_Execute_Expressions(UnumInstance* c, U
             ns->objects[0] = UNUM_OBJ_DEF;
 
             // Add stack to global stack
+            // Necessary for proper name resolution
             last_ns->objects[0].name = SAFE;
             last_ns->objects[0].data = ns;
             last_ns->objects[0].type = UNUM_OBJ_STACK;
@@ -1991,13 +2115,17 @@ UNUM_DEF UnumInternalObject Unum_Internal_Execute_Expressions(UnumInstance* c, U
                             return UNUM_OBJ_SAFE;
                         }
                     }
-
                 } else {
                     // Evaluate arguments
                     for(size e = 0; e < args.num; e++)
                     {
                         // Handle data
+                        // unum_log("\n---------------------------\nDATA: \"%s\" (%u) and \"%s\" (%u)\n---------------------------", c->program.tokens[args.pairs[e].a].value, args.pairs[e].a, c->program.tokens[args.pairs[e].b].value, args.pairs[e].b);
+
+                        // Try to resolve object outside namespace
                         UnumInternalObject oe = Unum_Internal_Execute_Data(c, ns, args.pairs[e]);
+
+                        // Try to resolve object inside namespace
 
                         // Verify object
                         if(Unum_Internal_Execute_Obj_Null(oe))
@@ -2015,9 +2143,9 @@ UNUM_DEF UnumInternalObject Unum_Internal_Execute_Expressions(UnumInstance* c, U
                         {
                             // Remember to skip passed object if necessary
                             if(u > 0)
-                                ns->objects[e + 2] = Unum_Internal_Execute_Data(c, ns, args.pairs[e]);
+                                ns->objects[e + 2] = oe;
                             else
-                                ns->objects[e + 1] = Unum_Internal_Execute_Data(c, ns, args.pairs[e]);
+                                ns->objects[e + 1] = oe;
                         }
                     }
                 }
@@ -2037,6 +2165,7 @@ UNUM_DEF UnumInternalObject Unum_Internal_Execute_Expressions(UnumInstance* c, U
                     return UNUM_OBJ_DEF; // rs;
                 }
 
+                /*
                 // Copy modified stack values back to source
                 // Todo - Minimize unnecessary copying by using hashes to compare data
 
@@ -2059,6 +2188,7 @@ UNUM_DEF UnumInternalObject Unum_Internal_Execute_Expressions(UnumInstance* c, U
                     if(obj_stack_id.a < Unum_Internal_Execute_Stack_Level(c))
                         Unum_Internal_Execute_Level(c, obj_stack_id.a)->objects[obj_stack_id.b] = ns->objects[si];
                 }
+                */
 
                 // Add to current level stack if not empty object
                 if(!Unum_Internal_Execute_Obj_Safe(rs))
@@ -2098,19 +2228,23 @@ UNUM_DEF UnumInternalObject Unum_Internal_Execute_Expressions(UnumInstance* c, U
                     return UNUM_OBJ_DEF;
                 }
 
-                // Handle passed object (if applicable)
-                if(u > 0)
-                {
-                    // Rename passed object according to first index (0)
-                    ns->objects[1].name = Unum_Internal_Utility_Strdup(func_obj.parameters.keys[0]);
-                    // unum_log("%s AND %s", func_obj.parameters.keys[0], ns->objects[1].name);
-                }
-
                 // Evaluate and add arguments
                 for(size e = 0; e < args.num; e++)
                 {
                     // Handle data
                     UnumInternalObject oe = Unum_Internal_Execute_Data(c, ns, args.pairs[e]);
+                    if(Unum_Internal_Valid(oe.name))
+                    {
+                        unum_log("VAR %s", oe.name);
+                    }
+
+                    // DEBUG
+                    /*
+                    if(oe.type == UNUM_OBJ_SINGLE)
+                    {
+                        unum_log("VAR %f", *((f64*)((UnumInternalObjSingle*)oe.data)->data));
+                    }
+                    */
 
                     // Todo - Properly verify argument types match
                     if(UNUM_FALSE) // Not accurate - func_obj.parameters.values[si].type != ns->objects[si + 1].type)
@@ -2139,9 +2273,6 @@ UNUM_DEF UnumInternalObject Unum_Internal_Execute_Expressions(UnumInstance* c, U
                     // Add object if not empty
                     if(!Unum_Internal_Execute_Obj_Safe(oe))
                     {
-                        // Rename object according to index
-                        oe.name = Unum_Internal_Utility_Strdup(func_obj.parameters.keys[e + (u > 0 ? 1 : 0)]);
-
                         // Remember to skip reserved object (and passed object if necessary)
                         if(u > 0)
                             ns->objects[e + 2] = oe;
@@ -2158,9 +2289,26 @@ UNUM_DEF UnumInternalObject Unum_Internal_Execute_Expressions(UnumInstance* c, U
                     }
                 }
 
+                /*
+                // Handle passed object (if applicable)
+                if(u > 0)
+                {
+                    // Rename passed object according to first index (0)
+                    ns->objects[1].name = Unum_Internal_Utility_Strdup(func_obj.parameters.keys[0]);
+                    // unum_log("%s AND %s", func_obj.parameters.keys[0], ns->objects[1].name);
+                }
+                */
+
+                // Rename stack objects
+                for(size so = 1; so < ns->count; so++)
+                {
+                    // Rename object according to index
+                    ns->objects[so].name = Unum_Internal_Utility_Strdup(func_obj.parameters.keys[so - 1]);
+                }
+
                 // Call function
                 unum_log("Calling function \"%s\"", res_obj.name);
-                UnumInternalObject func_res = Unum_Internal_Execute_Expressions(c, (UnumInternalStack*) last_ns->objects[0].data, func_obj.body.pair);
+                UnumInternalObject func_res = Unum_Internal_Execute_Expressions(c, (UnumInternalObjStack*) last_ns->objects[0].data, func_obj.body.pair);
 
                 //unum_log("DATA %f", *((f64*)((UnumInternalObjSingle*)func_res.data)->data));
 
@@ -2194,7 +2342,7 @@ UNUM_DEF UnumInternalObject Unum_Internal_Execute_Expressions(UnumInstance* c, U
 
             // Delete stack
             UNUM_FREE(ns);
-            last_ns->objects[0].data = NULL;
+            last_ns->objects[0] = UNUM_OBJ_DEF;
         }
 
         // Free expression ranges
@@ -2351,7 +2499,7 @@ UNUM_DEF void Unum_Destroy(UnumInstance* c)
     // Todo - Improve cleanup by using memory pool
     // Note - The current cleanup method may leak memory in some cases
 
-    UnumInternalStack* s = &c->stack;
+    UnumInternalObjStack* s = &c->stack;
 
     // Todo - Fix
     while(s != NULL)
@@ -2365,7 +2513,7 @@ UNUM_DEF void Unum_Destroy(UnumInstance* c)
 
         // Set next object if it isn't in the primary stack
         if(s->count > 0 && s != &c->stack)
-            s = (UnumInternalStack*)(s->objects[s->count - 1].data);
+            s = (UnumInternalObjStack*)(s->objects[s->count - 1].data);
         else
             s = NULL;
     }

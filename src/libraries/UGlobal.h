@@ -42,14 +42,14 @@
 // Safely assume types match
 
 // Version information function
-static UnumInternalObject unum_lib_global_version(UnumInstance* c, UnumInternalStack* f)
+static UnumInternalObject unum_lib_global_version(UnumInstance* c, UnumInternalObjStack* f)
 {
     i64* v = UNUM_MALLOC(sizeof(i32) * 1); \
     *v = UNUM_VERSION; \
     UnumInternalObjSingle* res = UNUM_MALLOC(sizeof(UnumInternalObjSingle) * 1); \
     res->data = v; \
     UnumInternalPair p = Unum_Internal_Execute_Id(c, "i64"); \
-    res->type = (UnumInternalObjType*)(Unum_Internal_Execute_Level(c, p.a)->objects[p.b].data); \
+    res->type = *((UnumInternalObjType*)(Unum_Internal_Execute_Level(c, p.a)->objects[p.b].data)); \
     return (UnumInternalObject) {.name = SAFE, .type = UNUM_OBJ_SINGLE, .data = res};
 }
 

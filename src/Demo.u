@@ -28,5 +28,5 @@
 @result f64 ->
 @body (math.sin p -> math.add 1.0 -> math.div 2.0 -> @return);
 
-# Should print the number 2.877230
-demo 5.5 -> math.add 2.73 -> io.print
+# Should print the number 16.0
+demo math.PI -> math.add (math.add 2.5, (math.sub 10.0, 5.0 -> math.add (math.mul 4.0, 2.0))) -> io.print
