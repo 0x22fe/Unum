@@ -231,7 +231,7 @@ typedef enum UnumInternalPrimitives
     UNUM_PRIMITIVE_I8, UNUM_PRIMITIVE_I16, UNUM_PRIMITIVE_I32, UNUM_PRIMITIVE_I64,
     UNUM_PRIMITIVE_U8, UNUM_PRIMITIVE_U16, UNUM_PRIMITIVE_U32, UNUM_PRIMITIVE_U64,
     UNUM_PRIMITIVE_F32, UNUM_PRIMITIVE_F64,
-    UNUM_PRIMITIVE_BOOL
+    UNUM_PRIMITIVE_BOOL, UNUM_PRIMITIVE_SYMBOL
 } UnumInternalPrimitives;
 
 typedef enum UnumInternalOperators
@@ -437,10 +437,11 @@ UNUM_DEF UnumInternalPairList Unum_Internal_Parse_Separate(UnumInternalTokens t,
 UNUM_DEF void Unum_Debug_Pair(UnumInternalTokens s, UnumInternalPairList p);
 UNUM_DEF void Unum_Debug_Sequence(UnumInternalTokens s, UnumInternalPair p);
 UNUM_DEF void Unum_Debug_Object(UnumInternalTokens s, UnumInternalObject p, size offset);
-UNUM_DEF bool Unum_Internal_Execute_Obj_Safe(UnumInternalObject o);
-UNUM_DEF bool Unum_Internal_Execute_Obj_Null(UnumInternalObject o);
-UNUM_DEF void Unum_Internal_Execute_Obj_Clear(UnumInternalObject o);
-UNUM_DEF bool Unum_Internal_Execute_Same_Type(UnumInternalObject a, UnumInternalObject b);
+UNUM_DEF bool Unum_Internal_Object_Safe(UnumInternalObject o);
+UNUM_DEF bool Unum_Internal_Object_Null(UnumInternalObject o);
+UNUM_DEF void Unum_Internal_Object_Destroy(UnumInternalObject o);
+UNUM_DEF bool Unum_Internal_Object_Type(UnumInternalObject a, UnumInternalObject b);
+UNUM_DEF UnumInternalObject Unum_Internal_Object_Bool(UnumInternalObject o);
 UNUM_DEF size Unum_Internal_Stack_Id(UnumInternalObjStack* s, str name);
 UNUM_DEF UnumInternalPair Unum_Internal_Execute_Id(UnumInstance* c, str name);
 UNUM_DEF size Unum_Internal_Execute_Stack_Level(UnumInstance* c);
@@ -455,6 +456,8 @@ UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Structure(UnumInstance* c, Unu
 UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Variable(UnumInstance* c, UnumInternalObjStack* params);
 UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Constant(UnumInstance* c, UnumInternalObjStack* params);
 UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Body(UnumInstance* c, UnumInternalObjStack* params);
+UNUM_DEF UnumInternalObject Unum_Internal_Keyword_If(UnumInstance* c, UnumInternalObjStack* params);
+UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Loop(UnumInstance* c, UnumInternalObjStack* params);
 UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Return(UnumInstance* c, UnumInternalObjStack* params);
 UNUM_DEF UnumInternalObject Unum_Internal_Keyword_Native(UnumInstance* c, UnumInternalObjStack* params);
 UNUM_DEF UnumInternalObject Unum_Internal_Execute_Data(UnumInstance* c, UnumInternalObjStack* ns, UnumInternalPair range);
@@ -517,6 +520,8 @@ static UnumInternalKeyword UNUM_KEYWORDS[] =
     [UNUM_KEYWORD_PARAMETERS] = {.name = "parameters", .func = Unum_Internal_Keyword_Parameters},
     [UNUM_KEYWORD_RESULT] = {.name = "result", .func = Unum_Internal_Keyword_Result},
     [UNUM_KEYWORD_BODY] = {.name = "body", .func = Unum_Internal_Keyword_Body},
+    [UNUM_KEYWORD_IF] = {.name = "if", .func = Unum_Internal_Keyword_If},
+    [UNUM_KEYWORD_LOOP] = {.name = "loop", .func = Unum_Internal_Keyword_Loop},
     [UNUM_KEYWORD_RETURN] = {.name = "return", .func = Unum_Internal_Keyword_Return}
 };
 
@@ -536,7 +541,8 @@ static UnumInternalObjType UNUM_PRIMITIVES[] =
     [UNUM_PRIMITIVE_U64] = { .type = "u64", .count = 0, .parts = NULL },
     [UNUM_PRIMITIVE_F32] = { .type = "f32", .count = 0, .parts = NULL },
     [UNUM_PRIMITIVE_F64] = { .type = "f64", .count = 0, .parts = NULL },
-    [UNUM_PRIMITIVE_BOOL] = { .type = "bool", .count = 0, .parts = NULL }
+    [UNUM_PRIMITIVE_BOOL] = { .type = "bool", .count = 0, .parts = NULL },
+    [UNUM_PRIMITIVE_SYMBOL] = { .type = "symbol", .count = 0, .parts = NULL }
 };
 
 // Treat as if constant
@@ -555,7 +561,8 @@ static UnumInternalObject UNUM_OBJECT_PRIMITIVES[] =
     [UNUM_PRIMITIVE_U64] = { .name = "u64", .data = &UNUM_PRIMITIVES[UNUM_PRIMITIVE_U64], .type = UNUM_OBJ_TYPE },
     [UNUM_PRIMITIVE_F32] = { .name = "f32", .data = &UNUM_PRIMITIVES[UNUM_PRIMITIVE_F32], .type = UNUM_OBJ_TYPE },
     [UNUM_PRIMITIVE_F64] = { .name = "f64", .data = &UNUM_PRIMITIVES[UNUM_PRIMITIVE_F64], .type = UNUM_OBJ_TYPE },
-    [UNUM_PRIMITIVE_BOOL] = { .name = "bool", .data = &UNUM_PRIMITIVES[UNUM_PRIMITIVE_BOOL], .type = UNUM_OBJ_TYPE }
+    [UNUM_PRIMITIVE_BOOL] = { .name = "bool", .data = &UNUM_PRIMITIVES[UNUM_PRIMITIVE_BOOL], .type = UNUM_OBJ_TYPE },
+    [UNUM_PRIMITIVE_SYMBOL] = { .name = "symbol", .data = &UNUM_PRIMITIVES[UNUM_PRIMITIVE_SYMBOL], .type = UNUM_OBJ_TYPE }
 };
 
 // Object defaults

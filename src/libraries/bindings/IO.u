@@ -28,5 +28,10 @@
     @function $print ->
     @parameters { a: any } ->
     @result ->
-    @body (@native $unum_io_print, a)
+    @body (@native $unum_io_print, a);
+
+    @function $println ->
+    @parameters { a: any } ->
+    @result ->
+    @body (@native $unum_io_println, a)
 )

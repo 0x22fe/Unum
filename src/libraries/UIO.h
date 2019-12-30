@@ -44,8 +44,8 @@
 // Print function
 static UnumInternalObject unum_lib_io_print(UnumInstance* c, UnumInternalObjStack* f)
 {
-    // Print all objects
-    for(size i = 0; i < f->count; i++)
+    // Print all objects in stack (except reserved element 0)
+    for(size i = 1; i < f->count; i++)
     {
         any data = f->objects[i].data;
 
@@ -54,7 +54,7 @@ static UnumInternalObject unum_lib_io_print(UnumInstance* c, UnumInternalObjStac
         switch (f->objects[i].type)
         {
         case UNUM_OBJ_BLANK: {
-            // printf("NULL");
+            printf("BLANK");
             break;
         }
         case UNUM_OBJ_TYPE: {
@@ -82,7 +82,10 @@ static UnumInternalObject unum_lib_io_print(UnumInstance* c, UnumInternalObjStac
             if(strcmp(v->type.type, "null") == 0) printf("NULL");
             else if(strcmp(v->type.type, "void") == 0) printf("VOID");
             else if(strcmp(v->type.type, "any") == 0) printf("ANY");
+            else if(strcmp(v->type.type, "i64") == 0) printf("%li", *((i64*)v->data));
+            else if(strcmp(v->type.type, "u64") == 0) printf("%lu", *((u64*)v->data));
             else if(strcmp(v->type.type, "f64") == 0) printf("%f", *((f64*)v->data));
+            else if(strcmp(v->type.type, "bool") == 0) printf("%s", *((bool*)v->data) ? "true" : "false");
             // ...
             else printf("UNKNOWN");
             break;
@@ -125,12 +128,21 @@ static UnumInternalObject unum_lib_io_print(UnumInstance* c, UnumInternalObjStac
     return UNUM_OBJ_SAFE;
 }
 
+// Println function
+static UnumInternalObject unum_lib_io_println(UnumInstance* c, UnumInternalObjStack* f)
+{
+    unum_lib_io_print(c, f);
+    printf("\n");
+    fflush(stdout);
+    return UNUM_OBJ_SAFE;
+}
+
 /****************************************************************
  * Function Loading
  ****************************************************************/
 
 // Function table
-static UnumInternalNative UNUM_NATIVE_IO[1];
+static UnumInternalNative UNUM_NATIVE_IO[2];
 
 // Unum code
 static const str UNUM_LIBRARY_IO =
@@ -143,13 +155,22 @@ static bool Unum_Lib_Io_Load()
     size counter = 0;
 
     UnumInternalObject unum_lib_io_print_params[] = { [0] = UNUM_OBJECT_PRIMITIVES[UNUM_PRIMITIVE_ANY] };
-    UnumInternalObject unum_lib_io_print_result = UNUM_OBJECT_PRIMITIVES[UNUM_PRIMITIVE_NULL];
+    UnumInternalObject unum_lib_io_print_result = UNUM_OBJECT_PRIMITIVES[UNUM_PRIMITIVE_VOID];
 
     UNUM_NATIVE_IO[counter++] =
             (UnumInternalNative)
     {
             .name = "unum_io_print",
             .function = unum_lib_io_print,
+            .params = unum_lib_io_print_params,
+            .result = unum_lib_io_print_result
+};
+
+    UNUM_NATIVE_IO[counter++] =
+            (UnumInternalNative)
+    {
+            .name = "unum_io_println",
+            .function = unum_lib_io_println,
             .params = unum_lib_io_print_params,
             .result = unum_lib_io_print_result
 };

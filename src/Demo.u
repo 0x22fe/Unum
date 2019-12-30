@@ -23,10 +23,43 @@
   SOFTWARE.
 ##
 
-@function $demo ->
-@parameters { p: f64 } ->
+# Test function f(x) = x^2
+@function $f ->
+@parameters { x: f64 } ->
 @result f64 ->
-@body (math.sin p -> math.add 1.0 -> math.div 2.0 -> @return);
+@body (math.pow x, 2.0 -> @return);
 
-# Should print the number 16.0
-demo math.PI -> math.add (math.add 2.5, (math.sub 10.0, 5.0 -> math.add (math.mul 4.0, 2.0))) -> io.print
+# Integrate function f(x) over [0.0, 5.0]
+
+# Inputs
+@variable $range_min, f64, 0.0;
+@variable $range_max, f64, 5.0;
+
+@variable $steps, f64, 10000.0;
+@variable $STEPS, u64, 10000;
+
+# Calculation
+@variable $sum, f64, 0.0;
+@variable $i, f64, range_min;
+@variable $increment, f64, (math.sub range_max, range_min -> math.div steps);
+
+@loop STEPS,
+(
+    math.mul increment, (f i) -> math.add sum -> sum;
+    math.add i, increment -> i
+);
+
+# Print output
+io.println sum
+
+# Print version information
+# global.version -> io.println
+# Prints from 1 to 10
+##
+@variable counter, f64, 0.0;
+@loop 1000, (math.add 1.0, counter -> counter; io.println counter)
+##
+# Prints the number 10
+# @if TRUE, (@if FALSE, (math.add 31.0, 20.0 -> io.print), (io.print 10)), (math.add 2.0, 0.0 -> io.print)
+# Prints the number 16.0
+# demo math.PI -> math.add (math.add 2.5, (math.sub 10.0, 5.0 -> math.add (math.mul 4.0, 2.0))) -> io.print

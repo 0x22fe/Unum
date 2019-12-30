@@ -41,14 +41,14 @@
 
 // Safely assume types match
 
-// Version information function
+// Version code function
 static UnumInternalObject unum_lib_global_version(UnumInstance* c, UnumInternalObjStack* f)
 {
-    i64* v = UNUM_MALLOC(sizeof(i32) * 1); \
+    u64* v = UNUM_MALLOC(sizeof(u64) * 1); \
     *v = UNUM_VERSION; \
     UnumInternalObjSingle* res = UNUM_MALLOC(sizeof(UnumInternalObjSingle) * 1); \
     res->data = v; \
-    UnumInternalPair p = Unum_Internal_Execute_Id(c, "i64"); \
+    UnumInternalPair p = Unum_Internal_Execute_Id(c, "u64"); \
     res->type = *((UnumInternalObjType*)(Unum_Internal_Execute_Level(c, p.a)->objects[p.b].data)); \
     return (UnumInternalObject) {.name = SAFE, .type = UNUM_OBJ_SINGLE, .data = res};
 }
@@ -70,8 +70,8 @@ static bool Unum_Lib_Global_Load()
 {
     size counter = 0;
 
-    UnumInternalObject unum_lib_global_version_params[] = { [0] = UNUM_OBJECT_PRIMITIVES[UNUM_PRIMITIVE_NULL] };
-    UnumInternalObject unum_lib_global_version_result = UNUM_OBJECT_PRIMITIVES[UNUM_PRIMITIVE_I64];
+    UnumInternalObject unum_lib_global_version_params[] = { [0] = UNUM_OBJECT_PRIMITIVES[UNUM_PRIMITIVE_VOID] };
+    UnumInternalObject unum_lib_global_version_result = UNUM_OBJECT_PRIMITIVES[UNUM_PRIMITIVE_U64];
 
     UNUM_NATIVE_GLOBAL[counter++] =
     (UnumInternalNative)

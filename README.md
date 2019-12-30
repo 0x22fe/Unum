@@ -5,7 +5,7 @@
 A programming language designed for simplicity, concurrency, and flow.
 
 # Status
-The project is currently in active development and an initial working version is almost ready.
+The project is in active development and is now usable.
 
 # Code
 The project is written in C99, however it may be changed to C89 for improved compatibility.
@@ -28,7 +28,41 @@ The usual "Hello World" example:
 
 ```
 
-_More examples coming soon!_
+Integrating a function over a given range:
+
+```
+# Test function f(x) = x^2
+@function $f ->
+@parameters { x: f64 } ->
+@result f64 ->
+@body (math.pow x, 2.0 -> @return);
+
+# Integrate function f(x) over [0.0, 5.0]
+
+# Inputs
+@variable $range_min, f64, 0.0;
+@variable $range_max, f64, 5.0;
+
+@variable $steps, f64, 10000.0;
+@variable $STEPS, u64, 10000;
+
+# Calculation
+@variable $sum, f64, 0.0;
+@variable $i, f64, range_min;
+@variable $increment, f64, (math.sub range_max, range_min -> math.div steps);
+
+@loop STEPS,
+(
+    math.mul increment, (f i) -> math.add sum -> sum;
+    math.add i, increment -> i
+);
+
+# Print output
+io.println sum
+
+```
+
+_More examples coming soon_
 
 # Planned features
 
@@ -47,7 +81,7 @@ Features that are planned or already in development include:
 And more!
 
 # Dependencies
-The only dependency of the project is [plibsys](https://github.com/saprykin/plibsys), which will be automatically downloaded by CMake on build.
+The project is built with CMake. The only other dependency of the project is [plibsys](https://github.com/saprykin/plibsys), which will be automatically downloaded by CMake on build.
 
 # License
 All code is under the MIT License.

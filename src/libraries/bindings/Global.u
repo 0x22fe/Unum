@@ -23,13 +23,14 @@
   SOFTWARE.
 ##
 
-@constant $FALSE, bool, 0;
-@constant $TRUE, bool, 1;
+# Program-wide values
+@variable $false, u8, 0;
+@variable $true, u8, 1;
 
 @namespace $global,
 (
     @function $version ->
     @parameters ->
-    @result i64 ->
+    @result u64 ->
     @body (@native $unum_global_version -> @return)
 )
