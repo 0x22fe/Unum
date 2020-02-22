@@ -4,7 +4,7 @@
 ## Version 1.0.0
 A programming language designed for simplicity, concurrency, and flow. The project is written in C99, however it may be changed to C89 for improved compatibility.
 
-**The project is in active development and is usable**
+**The project is in active development and is usable.**
 
 # Reference
 View the library [reference](#library-reference). 
