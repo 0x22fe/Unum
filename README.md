@@ -2,13 +2,12 @@
 
 # Unum
 ## Version 1.0.0
-A programming language designed for simplicity, concurrency, and flow.
+A programming language designed for simplicity, concurrency, and flow. The project is written in C99, however it may be changed to C89 for improved compatibility.
 
-# Status
-The project is in active development and is now usable.
+**The project is in active development and is usable**
 
-# Code
-The project is written in C99, however it may be changed to C89 for improved compatibility.
+# Reference
+View the library [reference](#library-reference). 
 
 # Examples
 
@@ -82,6 +81,17 @@ And more!
 
 # Dependencies
 The project is built with CMake. The only other dependency of the project is [plibsys](https://github.com/saprykin/plibsys), which will be automatically downloaded by CMake on build.
+
+# Library Reference
+This section contains information on the core libraries of Unum.
+
+Libraries
+ * Math (math), since v1.0.0
+ * I/O (io), since v1.0.0
+ * Algorithm (algo), upcoming
+ * String (string), upcoming
+ 
+Planned are file system, networking, multi-threading, and other libraries.
 
 # License
 All code is under the MIT License.
